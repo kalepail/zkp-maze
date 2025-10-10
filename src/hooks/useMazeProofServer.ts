@@ -41,14 +41,11 @@ export function useMazeProofServer(mazeSeed: number) {
         addLog('🔥 Warming up container...');
 
         // Step 0: Health check to warm up the container
-        try {
-          const healthResponse = await fetch('/api/health');
-          if (healthResponse.ok) {
-            addLog(`Container ready ✅`);
-          }
-        } catch (healthError) {
-          addLog('⚠️ Health check failed, proceeding anyway...');
+        const healthResponse = await fetch('/api/health');
+        if (!healthResponse.ok) {
+          throw new Error('Health check failed - proof service is not ready');
         }
+        addLog(`Container ready ✅`);
 
         addLog('🌐 Generating witness...');
 

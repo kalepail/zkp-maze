@@ -67,12 +67,8 @@ app.get("/", (c) => {
 
 // Health check endpoint - proxy to container
 app.get("/health", async (c) => {
-  try {
-    const container = getContainer(c.env.MY_CONTAINER);
-    return await container.fetch(c.req.raw);
-  } catch (error) {
-    return c.json({ status: "error", message: String(error) }, 503);
-  }
+  const container = getContainer(c.env.MY_CONTAINER);
+  return await container.fetch(c.req.raw);
 });
 
 // POST /witness - Generate witness from inputs
