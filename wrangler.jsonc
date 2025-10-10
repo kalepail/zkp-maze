@@ -1,0 +1,40 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "noir-maze-challenge",
+	"main": "worker/index.ts",
+	"compatibility_date": "2025-10-08",
+	"assets": {
+		"not_found_handling": "single-page-application"
+	},
+	"observability": {
+		"enabled": true
+	},
+	"containers": [
+		{
+			"class_name": "MyContainer",
+			"image": "worker/Dockerfile",
+			"instance_type": "standard-4",
+			"max_instances": 10
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"class_name": "MyContainer",
+				"name": "MY_CONTAINER"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"new_sqlite_classes": [
+				"MyContainer"
+			],
+			"tag": "v1"
+		}
+	]
+}

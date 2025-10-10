@@ -1,0 +1,86 @@
+# syntax=docker/dockerfile:1
+
+############################
+# 1) Build your Go server  #
+############################
+FROM golang:1.24-bookworm AS build
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+WORKDIR /app
+
+# Cache modules
+COPY container_src/go.mod ./
+RUN go mod download
+
+# App source
+COPY container_src/*.go ./
+
+# Build binary for linux/amd64
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /server
+
+
+##################################
+# 2) Install nargo (amd64)       #
+##################################
+FROM --platform=linux/amd64 ubuntu:24.04 AS nargo-tools
+SHELL ["/bin/bash", "-lc"]
+
+# Deps for download and extraction
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends bash curl ca-certificates tar \
+ && update-ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# Download and extract nargo binary directly
+ARG NARGO_VERSION=1.0.0-beta.9
+RUN curl -fsSL "https://github.com/noir-lang/noir/releases/download/v${NARGO_VERSION}/noir-x86_64-unknown-linux-gnu.tar.gz" -o /tmp/nargo.tar.gz \
+ && tar -xzf /tmp/nargo.tar.gz -C /usr/local/bin \
+ && rm /tmp/nargo.tar.gz \
+ && chmod +x /usr/local/bin/nargo \
+ && /usr/local/bin/nargo --version
+
+
+#############################
+# 3) Install bb (amd64)     #
+#############################
+FROM --platform=linux/amd64 debian:bullseye-slim AS bb-tools
+SHELL ["/bin/bash", "-lc"]
+
+# Deps for download and extraction
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends bash curl ca-certificates tar libc6 libstdc++6 libgomp1 \
+ && update-ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# Download and extract bb binary directly
+ARG BB_VERSION=0.84.0
+RUN curl -fsSL "https://github.com/AztecProtocol/aztec-packages/releases/download/v${BB_VERSION}/barretenberg-amd64-linux.tar.gz" -o /tmp/bb.tar.gz \
+ && tar -xzf /tmp/bb.tar.gz -C /usr/local/bin \
+ && rm /tmp/bb.tar.gz \
+ && chmod +x /usr/local/bin/bb 
+#  \
+#  && /usr/local/bin/bb --version
+
+
+#############################
+# 4) Final runtime (amd64)  #
+#############################
+FROM --platform=linux/amd64 debian:bullseye-slim
+SHELL ["/bin/bash", "-lc"]
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates bash libc6 libstdc++6 libgomp1 \
+ && update-ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# App binary (native amd64)
+COPY --from=build /server /server
+
+# Nargo (native amd64)
+COPY --from=nargo-tools /usr/local/bin/nargo /usr/local/bin/nargo
+
+# bb (native amd64)
+COPY --from=bb-tools /usr/local/bin/bb /usr/local/bin/bb
+
+EXPOSE 8080
+CMD ["/server"]
