@@ -48,10 +48,6 @@ export function useMazeProof(
         const proofDuration = ((performance.now() - proofStart) / 1000).toFixed(1);
         addLog(`Generated proof ✅ (${proofDuration}s)`);
 
-        // Convert proof to base64 string (matching server format)
-        const proofBase64 = btoa(String.fromCharCode(...proofData.proof));
-        setProof(proofBase64);
-
         addLog('🔍 Verifying proof...');
         const verifyStart = performance.now();
         const isValid = await backend.verifyProof(proofData);
@@ -59,6 +55,9 @@ export function useMazeProof(
         addLog(`Proof is ${isValid ? 'VALID ✅' : 'INVALID ❌'} (${verifyDuration}s)`);
 
         if (isValid) {
+          // Convert proof to base64 string (matching server format)
+          const proofBase64 = btoa(String.fromCharCode(...proofData.proof));
+          setProof(proofBase64);
           addLog('🎊 Congratulations! Your maze solution is cryptographically verified!');
         }
 

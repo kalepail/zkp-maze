@@ -82,9 +82,6 @@ export function useMazeProofServer(
         const proofDuration = ((performance.now() - proofStart) / 1000).toFixed(1);
         addLog(`Generated proof ✅ (${proofDuration}s)`);
 
-        // Store proof as base64 for display
-        setProof(proofResult.proof);
-
         addLog('🔍 Verifying proof...');
 
         // Step 3: Verify the proof
@@ -110,6 +107,8 @@ export function useMazeProofServer(
         addLog(`Proof is ${valid ? 'VALID ✅' : 'INVALID ❌'} (${verifyDuration}s)`);
 
         if (valid) {
+          // Store proof as base64 for display
+          setProof(proofResult.proof);
           addLog('🎊 Congratulations! Your maze solution is cryptographically verified!');
         }
       } catch (error) {
