@@ -3,34 +3,20 @@ import { MAX_MOVES } from '../constants/maze';
 
 export interface ProofState {
   proving: boolean;
-  proof: string;
-  logs: string[];
 }
 
-export function useMazeProofServer(mazeSeed: number) {
+export function useMazeProofServer(
+  mazeSeed: number,
+  addLog: (content: string) => void,
+  setProof: (proof: string) => void
+) {
   const [proving, setProving] = useState(false);
-  const [proof, setProof] = useState('');
-  const [logs, setLogs] = useState<string[]>([]);
-
-  const addLog = useCallback((content: string) => {
-    setLogs((prev) => [...prev, content]);
-  }, []);
-
-  const clearLogs = useCallback(() => {
-    setLogs([]);
-  }, []);
-
-  const clearProof = useCallback(() => {
-    setProof('');
-  }, []);
 
   const generateProof = useCallback(
-    async (moves: number[], _playerPos: [number, number], _endPos: [number, number]) => {
+    async (moves: number[]) => {
       try {
         setProving(true);
         setProof('');
-
-        addLog(`📊 Recorded ${moves.length} moves`);
 
         // Pad moves array
         const paddedMoves = new Array(MAX_MOVES).fill(0);
@@ -41,15 +27,18 @@ export function useMazeProofServer(mazeSeed: number) {
         addLog('🔥 Warming up container...');
 
         // Step 0: Health check to warm up the container
+        const healthStart = performance.now();
         const healthResponse = await fetch('/api/health');
         if (!healthResponse.ok) {
           throw new Error('Health check failed - proof service is not ready');
         }
-        addLog(`Container ready ✅`);
+        const healthDuration = ((performance.now() - healthStart) / 1000).toFixed(1);
+        addLog(`Container ready ✅ (${healthDuration}s)`);
 
-        addLog('🌐 Generating witness...');
+        addLog('🧮 Generating witness...');
 
         // Step 1: Generate witness from circuit inputs
+        const witnessStart = performance.now();
         const witnessResponse = await fetch('/api/witness', {
           method: 'POST',
           headers: {
@@ -67,11 +56,13 @@ export function useMazeProofServer(mazeSeed: number) {
         }
 
         const { witness } = await witnessResponse.json() as { witness: string };
-        addLog('Generated witness ✅');
+        const witnessDuration = ((performance.now() - witnessStart) / 1000).toFixed(1);
+        addLog(`Generated witness ✅ (${witnessDuration}s)`);
 
         addLog('🔐 Generating proof...');
 
         // Step 2: Generate proof from witness
+        const proofStart = performance.now();
         const proveResponse = await fetch('/api/prove', {
           method: 'POST',
           headers: {
@@ -88,7 +79,8 @@ export function useMazeProofServer(mazeSeed: number) {
         }
 
         const proofResult = await proveResponse.json() as { proof: string; publicInputs: string[] };
-        addLog('Generated proof ✅');
+        const proofDuration = ((performance.now() - proofStart) / 1000).toFixed(1);
+        addLog(`Generated proof ✅ (${proofDuration}s)`);
 
         // Store proof as base64 for display
         setProof(proofResult.proof);
@@ -96,6 +88,7 @@ export function useMazeProofServer(mazeSeed: number) {
         addLog('🔍 Verifying proof...');
 
         // Step 3: Verify the proof
+        const verifyStart = performance.now();
         const verifyResponse = await fetch('/api/verify', {
           method: 'POST',
           headers: {
@@ -113,7 +106,8 @@ export function useMazeProofServer(mazeSeed: number) {
         }
 
         const { valid } = await verifyResponse.json() as { valid: boolean };
-        addLog(`Proof is ${valid ? 'VALID ✅' : 'INVALID ❌'}`);
+        const verifyDuration = ((performance.now() - verifyStart) / 1000).toFixed(1);
+        addLog(`Proof is ${valid ? 'VALID ✅' : 'INVALID ❌'} (${verifyDuration}s)`);
 
         if (valid) {
           addLog('🎊 Congratulations! Your maze solution is cryptographically verified!');
@@ -125,16 +119,11 @@ export function useMazeProofServer(mazeSeed: number) {
         setProving(false);
       }
     },
-    [mazeSeed, addLog]
+    [mazeSeed, addLog, setProof]
   );
 
   return {
     proving,
-    proof,
-    logs,
-    addLog,
-    clearLogs,
-    clearProof,
     generateProof,
   };
 }

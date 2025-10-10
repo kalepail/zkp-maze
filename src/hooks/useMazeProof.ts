@@ -8,34 +8,20 @@ const circuit = circuitJson as CompiledCircuit;
 
 export interface ProofState {
   proving: boolean;
-  proof: string;
-  logs: string[];
 }
 
-export function useMazeProof(mazeSeed: number) {
+export function useMazeProof(
+  mazeSeed: number,
+  addLog: (content: string) => void,
+  setProof: (proof: string) => void
+) {
   const [proving, setProving] = useState(false);
-  const [proof, setProof] = useState('');
-  const [logs, setLogs] = useState<string[]>([]);
-
-  const addLog = useCallback((content: string) => {
-    setLogs((prev) => [...prev, content]);
-  }, []);
-
-  const clearLogs = useCallback(() => {
-    setLogs([]);
-  }, []);
-
-  const clearProof = useCallback(() => {
-    setProof('');
-  }, []);
 
   const generateProof = useCallback(
-    async (moves: number[], _playerPos: [number, number], _endPos: [number, number]) => {
+    async (moves: number[]) => {
       try {
         setProving(true);
         setProof('');
-
-        addLog(`📊 Recorded ${moves.length} moves`);
 
         // Pad moves array
         const paddedMoves = new Array(MAX_MOVES).fill(0);
@@ -43,35 +29,34 @@ export function useMazeProof(mazeSeed: number) {
           if (i < MAX_MOVES) paddedMoves[i] = move;
         });
 
-        addLog('🔧 Initializing Noir circuit...');
         const noir = new Noir(circuit);
 
-        addLog('🔧 Initializing backend...');
-        const backend = new UltraHonkBackend(
-          circuit.bytecode, 
-          { 
-            threads: Math.floor(navigator.hardwareConcurrency * 0.75)
-          },
-          // {
-          //   recursive: true
-          // }
-        );
+        const backend = new UltraHonkBackend(circuit.bytecode, { threads: navigator.hardwareConcurrency });
         
         addLog('🧮 Generating witness...');
+        const witnessStart = performance.now();
         const { witness } = await noir.execute({
           maze_seed: mazeSeed.toString(),
           moves: paddedMoves,
         });
-        addLog('Generated witness ✅');
+        const witnessDuration = ((performance.now() - witnessStart) / 1000).toFixed(1);
+        addLog(`Generated witness ✅ (${witnessDuration}s)`);
 
         addLog('🔐 Generating proof...');
+        const proofStart = performance.now();
         const proofData = await backend.generateProof(witness);
-        addLog('Generated proof ✅');
-        setProof(proofData.proof.toString());
+        const proofDuration = ((performance.now() - proofStart) / 1000).toFixed(1);
+        addLog(`Generated proof ✅ (${proofDuration}s)`);
+
+        // Convert proof to base64 string (matching server format)
+        const proofBase64 = btoa(String.fromCharCode(...proofData.proof));
+        setProof(proofBase64);
 
         addLog('🔍 Verifying proof...');
+        const verifyStart = performance.now();
         const isValid = await backend.verifyProof(proofData);
-        addLog(`Proof is ${isValid ? 'VALID ✅' : 'INVALID ❌'}`);
+        const verifyDuration = ((performance.now() - verifyStart) / 1000).toFixed(1);
+        addLog(`Proof is ${isValid ? 'VALID ✅' : 'INVALID ❌'} (${verifyDuration}s)`);
 
         if (isValid) {
           addLog('🎊 Congratulations! Your maze solution is cryptographically verified!');
@@ -85,16 +70,11 @@ export function useMazeProof(mazeSeed: number) {
         setProving(false);
       }
     },
-    [circuit, mazeSeed, addLog]
+    [mazeSeed, addLog, setProof]
   );
 
   return {
     proving,
-    proof,
-    logs,
-    addLog,
-    clearLogs,
-    clearProof,
     generateProof,
   };
 }

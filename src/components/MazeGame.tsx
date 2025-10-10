@@ -5,7 +5,7 @@ import { NORTH, EAST, SOUTH, WEST } from '../constants/maze';
 import { ANIMATION } from '../constants/theme';
 import { useGameState } from '../hooks/useGameState';
 import { useMazeProofServer } from '../hooks/useMazeProofServer';
-// import { useMazeProof } from '../hooks/useMazeProof';
+import { useMazeProof } from '../hooks/useMazeProof';
 import { useSwipeControls } from '../hooks/useSwipeControls';
 import MazeCanvas from './MazeCanvas';
 import GameControls from './GameControls';
@@ -17,6 +17,19 @@ import MobileControls from './MobileControls';
 export default function MazeGame() {
   const [initialMaze, setInitialMaze] = useState<number[][]>([]);
   const [loading, setLoading] = useState(true);
+  const [useLocalProof, setUseLocalProof] = useState(true);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [proof, setProof] = useState('');
+
+  // Shared log management
+  const addLog = useCallback((content: string) => {
+    setLogs((prev) => [...prev, content]);
+  }, []);
+
+  // Shared proof management
+  const clearProof = useCallback(() => {
+    setProof('');
+  }, []);
 
   // Initialize maze
   useEffect(() => {
@@ -32,8 +45,14 @@ export default function MazeGame() {
   }, []);
 
   const gameState = useGameState(initialMaze);
-  const proof = useMazeProofServer(mazeConfig.seed);
-  // const proof = useMazeProof(mazeConfig.seed);
+
+  // Call both hooks (React rules require hooks to be called unconditionally)
+  // Pass shared log and proof functions to both hooks
+  const localProofHook = useMazeProof(mazeConfig.seed, addLog, setProof);
+  const serverProofHook = useMazeProofServer(mazeConfig.seed, addLog, setProof);
+
+  // Select which proof hook to use based on toggle
+  const proofHook = useLocalProof ? localProofHook : serverProofHook;
 
   const {
     maze,
@@ -93,18 +112,16 @@ export default function MazeGame() {
   // Add initial log when maze is loaded
   useEffect(() => {
     if (!loading) {
-      proof.addLog(`🎮 Maze generated from seed ${mazeConfig.seed}! Use arrow keys to navigate.`);
+      addLog(`🎮 Maze generated from seed ${mazeConfig.seed}! Use arrow keys to navigate.`);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
+  }, [loading, addLog]);
 
   // Add victory log
   useEffect(() => {
     if (won) {
-      proof.addLog('🎉 You solved the maze! Click "Generate Proof" to verify.');
+      addLog('🎉 You solved the maze! Click "Generate Proof" to verify.');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [won]);
+  }, [won, addLog]);
 
   // BFS pathfinding to solve the maze
   const findPath = useCallback((): [number, number][] | null => {
@@ -157,19 +174,19 @@ export default function MazeGame() {
   }, [playerPos, endPos, maze]);
 
   const autoSolve = useCallback(async () => {
-    if (won || proof.proving || autoSolving) return;
+    if (won || proofHook.proving || autoSolving) return;
 
     setAutoSolving(true);
-    proof.addLog('🤖 Auto-solving maze...');
+    addLog('🤖 Auto-solving maze...');
 
     const path = findPath();
     if (!path) {
-      proof.addLog('❌ No solution found!');
+      addLog('❌ No solution found!');
       setAutoSolving(false);
       return;
     }
 
-    proof.addLog(`🗺️ Found path with ${path.length - 1} steps`);
+    addLog(`🗺️ Found path with ${path.length - 1} steps`);
 
     // Convert path to direction moves
     const pathMoves: number[] = [];
@@ -220,7 +237,7 @@ export default function MazeGame() {
     animateMove();
   }, [
     won,
-    proof.proving,
+    proofHook.proving,
     autoSolving,
     findPath,
     setAutoSolving,
@@ -229,21 +246,20 @@ export default function MazeGame() {
     setPlayerPath,
     setMoves,
     setWon,
-    proof,
+    addLog,
   ]);
 
   const handleGenerateProof = useCallback(() => {
     if (won) {
-      proof.generateProof(moves, playerPos, endPos);
+      proofHook.generateProof(moves);
     }
-  }, [won, moves, playerPos, endPos, proof]);
+  }, [won, moves, proofHook]);
 
   const handleReset = useCallback(() => {
     reset();
-    proof.clearLogs();
-    proof.clearProof();
-    proof.addLog(`🎮 Maze reset! Use arrow keys to navigate.`);
-  }, [reset, proof]);
+    clearProof();
+    addLog(`🎮 Maze reset to seed ${mazeConfig.seed}! Use arrow keys to navigate.`);
+  }, [reset, clearProof, addLog]);
 
   if (loading) {
     return (
@@ -280,8 +296,10 @@ export default function MazeGame() {
             {/* Game Controls */}
             <GameControls
               won={won}
-              proving={proof.proving}
+              proving={proofHook.proving}
               autoSolving={autoSolving}
+              useLocalProof={useLocalProof}
+              onUseLocalProofChange={setUseLocalProof}
               onGenerateProof={handleGenerateProof}
               onAutoSolve={autoSolve}
               onReset={handleReset}
@@ -290,7 +308,7 @@ export default function MazeGame() {
             {/* Mobile Touch Controls */}
             <MobileControls
               onMove={handleMove}
-              disabled={won || autoSolving || proof.proving}
+              disabled={won || autoSolving || proofHook.proving}
             />
 
             <div className="grid md:grid-cols-2 md:grid-rows-2 gap-4 mt-4 md:max-h-[600px]">
@@ -307,10 +325,10 @@ export default function MazeGame() {
               </div>
 
               {/* Logs - row 1 */}
-              <LogsPanel logs={proof.logs} />
+              <LogsPanel logs={logs} />
 
               {/* Proof - row 2 */}
-              <ProofPanel proof={proof.proof} proving={proof.proving} />
+              <ProofPanel proof={proof} proving={proofHook.proving} />
             </div>
           </div>
         </div>
