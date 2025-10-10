@@ -12,6 +12,7 @@
 		"lint": "eslint .",
 		"typecheck": "tsc --noEmit",
 		"compile": "cd circuit && nargo compile && cp target/circuit.json ../worker/container_src/circuit.json",
+		"generate": "python3 generate_maze.py 2918957128 --no-preview",
 		"test": "cd circuit && nargo test"
 	},
 	"devDependencies": {

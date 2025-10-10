@@ -323,14 +323,9 @@ fn test_generated_solution() {{
         except IOError as e:
             raise IOError(f"Failed to write test solution to {output_path}: {e}")
 
-    def export_for_noir(self, output_dir: Path = None):
-        """Export maze configuration for Noir circuit with test case and prover inputs.
-
-        Args:
-            output_dir: Base directory for outputs (defaults to project structure)
-        """
-        if output_dir is None:
-            output_dir = Path(".")
+    def export_for_noir(self):
+        """Export maze configuration for Noir circuit with test case and prover inputs."""
+        output_dir = Path(".")
 
         grid = self.to_binary_grid()
         start_grid, end_grid = self.get_grid_coordinates()
@@ -352,14 +347,9 @@ fn test_generated_solution() {{
         self.export_prover_inputs(prover_path, moves)
         self.export_test_solution(test_path, moves)
 
-    def export_for_frontend(self, output_path: Path = None):
-        """Export minimal config for frontend (seed only - frontend generates maze).
-
-        Args:
-            output_path: Path to output JSON file (defaults to src/maze_seed.json)
-        """
-        if output_path is None:
-            output_path = Path("src") / "maze_seed.json"
+    def export_for_frontend(self):
+        """Export minimal config for frontend (seed only - frontend generates maze)."""
+        output_path = Path("src") / "maze_seed.json"
 
         config = {
             "seed": self.seed,
@@ -416,12 +406,10 @@ def main():
         print()
 
         # Export for Noir
-        output_dir = Path(".")
-        maze.export_for_noir(output_dir)
+        maze.export_for_noir()
 
         # Export for frontend
-        frontend_path = output_dir / "src" / "maze_seed.json"
-        maze.export_for_frontend(frontend_path)
+        maze.export_for_frontend()
 
         # Show preview
         if not args.no_preview:

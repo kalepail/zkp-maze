@@ -29,3 +29,15 @@ dist-ssr
 !.dev.vars.example
 .env*
 !.env.example
+
+# Manually added
+.DS_Store
+node_modules
+.vscode
+.playwright-mcp
+.claude
+.astro
+target
+!circuit/target/circuit.json
+dist
+.wrangler
