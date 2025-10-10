@@ -4,12 +4,9 @@
 // Grid size: 41x41 (includes walls)
 
 pub global MAZE_SEED: u32 = 2918957128;
-pub global MAZE_ROWS: u32 = 41;
-pub global MAZE_COLS: u32 = 41;
-pub global START_ROW: u32 = 1;
-pub global START_COL: u32 = 1;
-pub global END_ROW: u32 = 39;
-pub global END_COL: u32 = 39;
+pub global MAZE_SIZE: u8 = 41;  // Square maze
+pub global START_POS: u8 = 1;   // Both row and col start at 1
+pub global END_POS: u8 = 39;    // Both row and col end at 39
 
 pub global MAZE: [[u8; 41]; 41] = [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],

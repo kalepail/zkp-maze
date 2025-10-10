@@ -3,7 +3,7 @@
 # Build stage
 FROM node:22-alpine AS build
 
-ARG VERSION=0.1.6
+ARG VERSION=0.2.0
 
 WORKDIR /app
 

@@ -21,13 +21,10 @@ from typing import Any, List, Tuple, Dict
 # Configuration constants - must match src/constants/maze.ts and circuit/src/maze_config.nr
 MAX_MOVES = 500  # Maximum number of moves allowed in solution
 CELL_ROWS = 20  # Maze dimensions in cells (not including walls)
-CELL_COLS = 20
-GRID_ROWS = 41  # Grid dimensions including walls (CELL_ROWS * 2 + 1)
-GRID_COLS = 41
-START_ROW = 1  # Start position in grid coordinates
-START_COL = 1
-END_ROW = 39  # End position in grid coordinates (GRID_ROWS - 2)
-END_COL = 39
+CELL_COLS = 20  # Must equal CELL_ROWS (square maze requirement)
+GRID_SIZE = 41  # Grid dimensions including walls (CELL_ROWS * 2 + 1) - square maze
+START_POS = 1  # Start position in grid coordinates (both row and col)
+END_POS = 39  # End position in grid coordinates (GRID_SIZE - 2, both row and col)
 
 # Direction constants matching frontend encoding
 NORTH, EAST, SOUTH, WEST = 0, 1, 2, 3
@@ -239,6 +236,16 @@ class Maze:
                            start_grid: Tuple[int, int], end_grid: Tuple[int, int],
                            path_length: int, moves_count: int, sample_moves: List[int]):
         """Export maze configuration to Noir circuit file."""
+        # Validate square maze assumption
+        if len(grid) != len(grid[0]):
+            raise ValueError(f"Maze must be square! Got {len(grid)}x{len(grid[0])}")
+
+        # Validate start/end positions match (diagonal corners)
+        if start_grid[0] != start_grid[1]:
+            raise ValueError(f"Start position must be diagonal (row == col), got {start_grid}")
+        if end_grid[0] != end_grid[1]:
+            raise ValueError(f"End position must be diagonal (row == col), got {end_grid}")
+
         # Format as Noir array
         grid_str = "[\n"
         for row in grid:
@@ -251,12 +258,9 @@ class Maze:
 // Grid size: {len(grid)}x{len(grid[0])} (includes walls)
 
 pub global MAZE_SEED: u32 = {self.seed};
-pub global MAZE_ROWS: u32 = {len(grid)};
-pub global MAZE_COLS: u32 = {len(grid[0])};
-pub global START_ROW: u32 = {start_grid[0]};
-pub global START_COL: u32 = {start_grid[1]};
-pub global END_ROW: u32 = {end_grid[0]};
-pub global END_COL: u32 = {end_grid[1]};
+pub global MAZE_SIZE: u8 = {len(grid)};  // Square maze
+pub global START_POS: u8 = {start_grid[0]};   // Both row and col start at {start_grid[0]}
+pub global END_POS: u8 = {end_grid[0]};    // Both row and col end at {end_grid[0]}
 
 pub global MAZE: [[u8; {len(grid[0])}]; {len(grid)}] = {grid_str};
 
@@ -270,8 +274,8 @@ pub global MAZE: [[u8; {len(grid[0])}]; {len(grid)}] = {grid_str};
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(noir_code)
             print(f"✅ Noir configuration written to {output_path}")
-            print(f"   Grid size: {len(grid)}x{len(grid[0])}")
-            print(f"   Start: {start_grid}, End: {end_grid}")
+            print(f"   Grid size: {len(grid)}x{len(grid[0])} (square)")
+            print(f"   Start: ({start_grid[0]}, {start_grid[0]}), End: ({end_grid[0]}, {end_grid[0]})")
             print(f"   Solution: {path_length} positions, {moves_count} moves")
             print(f"   Sample moves: {sample_moves[:40]}{'...' if len(sample_moves) > 40 else ''}")
         except IOError as e:
