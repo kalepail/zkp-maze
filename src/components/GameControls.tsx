@@ -1,4 +1,3 @@
-import { useState } from 'react';
 
 interface GameControlsProps {
   won: boolean;
@@ -17,23 +16,6 @@ export default function GameControls({
   onAutoSolve,
   onReset,
 }: GameControlsProps) {
-  const [checkingHealth, setCheckingHealth] = useState(false);
-
-  const handleHealthCheck = async () => {
-    setCheckingHealth(true);
-    try {
-      const response = await fetch('/api/health');
-      const data = await response.json();
-      console.log('Health check response:', data);
-      alert(JSON.stringify(data, null, 2));
-    } catch (error) {
-      console.error('Health check failed:', error);
-      alert('Health check failed: ' + (error as Error).message);
-    } finally {
-      setCheckingHealth(false);
-    }
-  };
-
   return (
     <div className="flex gap-3 mt-3 flex-wrap">
       <button
@@ -59,14 +41,6 @@ export default function GameControls({
         aria-label="Reset the maze to start position"
       >
         Reset
-      </button>
-      <button
-        onClick={handleHealthCheck}
-        disabled={checkingHealth}
-        className="px-6 py-2 bg-blue-600 text-white font-mono border-2 border-black hover:bg-blue-700 active:translate-x-[2px] active:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-        aria-label="Check proof service health"
-      >
-        {checkingHealth ? 'Checking...' : 'Check Health'}
       </button>
     </div>
   );
