@@ -399,23 +399,6 @@ This executes only the test cases defined in `circuit/src/test_solutions.nr`.
   - Scales from 1-10 container instances on demand
   - Best for: Production, user experience, lower-end devices
 
-### Resource Usage
-
-- **Circuit Size**: ~21,000 gates (arithmetic operations)
-- **Witness Size**: ~9 KB (500 moves + public inputs)
-- **Proof Size**: ~2 KB (UltraHonk proof)
-- **CRS Download**: ~100 MB (one-time, cached in container image)
-- **Container RAM**: 4 GB allocated, ~500 MB used during proving
-- **Container CPU**: 4 cores, fully utilized during bb CLI execution
-
-### Scaling Behavior
-
-- Containers auto-scale based on concurrent requests (max 10)
-- Each container handles one proof at a time
-- Idle containers sleep after 5 minutes to reduce costs
-- Container startup: ~2-3 seconds (cold start)
-- Health check warmup: ~1 second
-
 ## Implementation Highlights
 
 ### Circuit Optimizations
@@ -455,14 +438,6 @@ The installed Nargo version (beta.13) is newer than package.json (beta.9). This 
 
 ### Container shows "bb: command not found"
 The Barretenberg binary wasn't installed correctly during build. Rebuild the container image.
-
-## Contributing
-
-This project demonstrates ZK proof architecture patterns. Key areas for contribution:
-- Additional maze generation algorithms
-- Circuit optimizations and gate count reduction
-- Frontend UI/UX improvements
-- Documentation and examples
 
 ## License
 
