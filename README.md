@@ -76,15 +76,25 @@ pnpm run generate
 
 This creates the maze layout and updates the circuit configuration files.
 
-### 3. Compile the Noir Circuit
+### 3. Compile and Test the Noir Circuit
 
-The circuit must be compiled before running the application:
+The best way to compile, execute, and test the circuit is with a single command:
 
 ```bash
-pnpm run compile
+pnpm run nargo
 ```
 
-This compiles the Noir circuit in `circuit/src/main.nr` and copies the output to `worker/container_src/circuit.json`.
+This command:
+1. Compiles the circuit (`nargo compile`)
+2. Executes with test inputs (`nargo execute`)
+3. Runs all circuit tests (`nargo test`)
+4. Copies compiled output to `worker/container_src/`
+
+**Individual commands** (if needed):
+```bash
+pnpm run compile  # Just compile
+pnpm run test     # Just test
+```
 
 ### 4. Run Development Server
 
@@ -190,8 +200,9 @@ The deployment is configured in `wrangler.jsonc`:
 - `pnpm run build` - Build for production
 - `pnpm run preview` - Preview production build locally
 - `pnpm run deploy` - Build and deploy to Cloudflare
-- `pnpm run compile` - Compile Noir circuit
-- `pnpm run test` - Run Noir circuit tests
+- **`pnpm run nargo`** - **Compile, execute, and test circuit (recommended)**
+- `pnpm run compile` - Compile Noir circuit only
+- `pnpm run test` - Run Noir circuit tests only
 - `pnpm run generate` - Generate new maze with Python script
 - `pnpm run lint` - Lint code with ESLint
 - `pnpm run typecheck` - Type-check without emitting files
@@ -259,13 +270,13 @@ This runs `generate_maze.py` which:
 
 ### After Generating
 
-You must recompile the circuit with the new maze configuration:
+You must recompile and test the circuit with the new maze configuration:
 
 ```bash
-pnpm run compile
+pnpm run nargo
 ```
 
-This compiles the updated circuit and copies it to the container source directory.
+This compiles the updated circuit, tests it with the generated solution, and copies it to the container source directory.
 
 ## API Endpoints
 
@@ -318,13 +329,29 @@ Generates a ZK proof from witness data using the Barretenberg CLI in the contain
 
 ## Testing
 
-Run the Noir circuit tests:
+### Full Circuit Validation (Recommended)
+
+Run the complete circuit workflow with compile, execute, and test:
+
+```bash
+pnpm run nargo
+```
+
+This command:
+1. Compiles the circuit from `circuit/src/main.nr`
+2. Executes with witness from `circuit/Prover.toml`
+3. Runs all test cases in `circuit/src/test_solutions.nr`
+4. Copies outputs to `worker/container_src/`
+
+### Individual Test Commands
+
+If you just want to run tests without recompiling:
 
 ```bash
 pnpm run test
 ```
 
-This executes the test cases defined in `circuit/src/test_solutions.nr`.
+This executes only the test cases defined in `circuit/src/test_solutions.nr`.
 
 ## Technology Stack
 
@@ -424,7 +451,7 @@ The installed Nargo version (beta.13) is newer than package.json (beta.9). This 
 ### Proof generation times out
 - Local mode: Increase timeout or use remote mode
 - Remote mode: Check container logs with `wrangler tail`
-- Verify circuit compiles successfully: `pnpm run compile`
+- Verify circuit compiles and tests pass: `pnpm run nargo`
 
 ### Container shows "bb: command not found"
 The Barretenberg binary wasn't installed correctly during build. Rebuild the container image.
