@@ -26,7 +26,8 @@ export class MyContainer extends Container<Env> {
   }
 
   override onError(error: unknown) {
-    console.log("Noir container error:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.log("Noir container error:", errorMessage);
   }
 }
 
@@ -75,8 +76,9 @@ app.get("/health", async (c) => {
     const response = await container.fetch(c.req.raw);
     return response;
   } catch (error) {
-    console.error('Health check error:', error);
-    return c.json({ error: 'Container health check failed', message: String(error) }, 500);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Health check error:', errorMessage);
+    return c.json({ error: 'Container health check failed', message: errorMessage }, 500);
   }
 });
 
@@ -87,8 +89,9 @@ app.post("/prove", async (c) => {
     const response = await container.fetch(c.req.raw);
     return response;
   } catch (error) {
-    console.error('Prove error:', error);
-    return c.json({ error: 'Container prove failed', message: String(error) }, 500);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Prove error:', errorMessage);
+    return c.json({ error: 'Container prove failed', message: errorMessage }, 500);
   }
 });
 

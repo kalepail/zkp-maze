@@ -54,7 +54,7 @@ export default function GameControls({
       </button>
       <button
         onClick={onReset}
-        disabled={autoSolving}
+        disabled={autoSolving || proving}
         className="px-6 py-2 bg-white text-black font-mono border-2 border-black hover:bg-black hover:text-white active:translate-x-[2px] active:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
         aria-label="Reset the maze to start position"
       >

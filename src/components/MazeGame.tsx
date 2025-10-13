@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import mazeConfig from '../maze_seed.json';
 import { MazeGenerator } from '../utils/mazeGenerator';
 import { NORTH, EAST, SOUTH, WEST } from '../constants/maze';
@@ -19,6 +19,7 @@ export default function MazeGame() {
   const [useLocalProof, setUseLocalProof] = useState(true);
   const [logs, setLogs] = useState<string[]>([]);
   const [proof, setProof] = useState('');
+  const warmupInitiatedRef = useRef(false);
 
   // Shared log management
   const addLog = useCallback((content: string) => {
@@ -53,13 +54,22 @@ export default function MazeGame() {
     setProof
   );
 
+  // Warmup container when switching to server mode
+  useEffect(() => {
+    if (!useLocalProof && !warmupInitiatedRef.current) {
+      warmupInitiatedRef.current = true;
+      proofHook.warmupContainer();
+    }
+    // Reset the ref when switching back to local mode
+    if (useLocalProof) {
+      warmupInitiatedRef.current = false;
+    }
+  }, [useLocalProof, proofHook.warmupContainer]);
+
   // Handle warmup when toggling to remote mode
   const handleUseLocalProofChange = useCallback((useLocal: boolean) => {
     setUseLocalProof(useLocal);
-    if (!useLocal) {
-      proofHook.warmupContainer();
-    }
-  }, [proofHook]);
+  }, []);
 
   const {
     maze,
