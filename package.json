@@ -10,7 +10,7 @@
 		"deploy": "pnpm run build && wrangler deploy --env=''",
 		"types": "wrangler types",
 		"lint": "eslint .",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "tsc -b --noEmit",
 		"nargo": "pnpm run compile && pnpm run execute && cd circuit && nargo test",
 		"compile": "cd circuit && nargo compile && cp target/circuit.json ../worker/container_src/circuit.json",
 		"execute": "cd circuit && nargo execute && cp target/circuit.gz ../worker/container_src/circuit.gz",

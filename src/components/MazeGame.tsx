@@ -4,7 +4,6 @@ import { MazeGenerator } from '../utils/mazeGenerator';
 import { NORTH, EAST, SOUTH, WEST } from '../constants/maze';
 import { ANIMATION } from '../constants/theme';
 import { useGameState } from '../hooks/useGameState';
-import { useMazeProofServer } from '../hooks/useMazeProofServer';
 import { useMazeProof } from '../hooks/useMazeProof';
 import { useSwipeControls } from '../hooks/useSwipeControls';
 import MazeCanvas from './MazeCanvas';
@@ -46,21 +45,21 @@ export default function MazeGame() {
 
   const gameState = useGameState(initialMaze);
 
-  // Call both hooks (React rules require hooks to be called unconditionally)
-  // Pass shared log and proof functions to both hooks
-  const localProofHook = useMazeProof(mazeConfig.seed, addLog, setProof);
-  const serverProofHook = useMazeProofServer(mazeConfig.seed, addLog, setProof);
-
-  // Select which proof hook to use based on toggle
-  const proofHook = useLocalProof ? localProofHook : serverProofHook;
+  // Use unified proof hook with mode parameter
+  const proofHook = useMazeProof(
+    useLocalProof ? 'local' : 'server',
+    mazeConfig.seed,
+    addLog,
+    setProof
+  );
 
   // Handle warmup when toggling to remote mode
   const handleUseLocalProofChange = useCallback((useLocal: boolean) => {
     setUseLocalProof(useLocal);
     if (!useLocal) {
-      serverProofHook.warmupContainer();
+      proofHook.warmupContainer();
     }
-  }, [serverProofHook]);
+  }, [proofHook]);
 
   const {
     maze,
