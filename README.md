@@ -265,21 +265,31 @@ This executes the test cases defined in `circuit/src/test_solutions.nr`.
 ## Technology Stack
 
 ### Frontend
-- React 19
-- Vite 7
-- Tailwind CSS 4
-- TypeScript
+- **React 19** - Latest React with concurrent features
+- **Vite 7** - Lightning-fast build tool and dev server
+- **Tailwind CSS 4** - Utility-first CSS framework
+- **TypeScript 5.9** - Type-safe JavaScript
 
 ### Zero-Knowledge Proofs
-- Noir 1.0.0-beta.9 (circuit language)
-- bb.js 0.84.0 (proof generation)
-- UltraHonk proving system
+- **Noir 1.0.0-beta.13** - Domain-specific language for ZK circuits
+- **Barretenberg (bb) 0.85.0** - Aztec's proving system
+  - CLI version in containers for native performance
+  - bb.js (WebAssembly) in browser for local proving
+- **UltraHonk** - Modern proving system with recursion support
+- **@noir-lang/noir_js 1.0.0-beta.9** - Witness generation in JavaScript/WASM
 
 ### Backend
-- Cloudflare Workers (serverless runtime)
-- Cloudflare Containers (containerized proof server)
-- Hono (lightweight web framework)
-- Express (container API server)
+- **Rust 1.90** - Systems programming language for container server
+- **Axum** - Ergonomic, modular web framework for Rust
+- **Hono** - Ultra-fast TypeScript web framework for Workers
+- **Cloudflare Workers** - Serverless JavaScript runtime at the edge
+- **Cloudflare Containers** - Containerized compute with Durable Objects
+- **Ubuntu 24.04** - Container base image (GLIBC 2.38+ required by bb)
+
+### Development Tools
+- **Python 3** - Maze generation with deterministic Park-Miller PRNG
+- **Wrangler 4** - Cloudflare's CLI for deployment and local dev
+- **pnpm** - Efficient package manager with content-addressable storage
 
 ## Performance Notes
 
