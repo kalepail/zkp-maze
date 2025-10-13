@@ -15,8 +15,9 @@ export const START_COL = 1;
 export const END_ROW = 39;
 export const END_COL = 39;
 
-// Maximum moves allowed in the circuit
-export const MAX_MOVES = 500;
+// Maximum moves allowed in the circuits
+export const MAX_MOVES = 500; // Noir circuit supports 500 moves
+export const MAX_MOVES_CIRCOM = 500; // Circom circuits now support 500 moves (full comparison)
 
 // Direction constants (must match Noir circuit encoding)
 export const NORTH = 0;

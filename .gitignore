@@ -41,3 +41,8 @@ target
 !circuit/target/circuit.json
 dist
 .wrangler
+
+# Circom build artifacts
+circuit-circom/build/
+circuit-circom/ptau/
+public/circom/

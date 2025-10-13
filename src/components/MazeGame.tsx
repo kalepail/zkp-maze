@@ -5,18 +5,24 @@ import { NORTH, EAST, SOUTH, WEST } from '../constants/maze';
 import { ANIMATION } from '../constants/theme';
 import { useGameState } from '../hooks/useGameState';
 import { useMazeProof } from '../hooks/useMazeProof';
+import { useMazeProofCircomGroth16 } from '../hooks/useMazeProofCircomGroth16';
+import { useMazeProofCircomPlonk } from '../hooks/useMazeProofCircomPlonk';
 import { useSwipeControls } from '../hooks/useSwipeControls';
+import type { ProofSystemType } from '../types/proofSystem';
+import { DEFAULT_PROOF_SYSTEM } from '../types/proofSystem';
 import MazeCanvas from './MazeCanvas';
 import GameControls from './GameControls';
 import StatsPanel from './StatsPanel';
 import LogsPanel from './LogsPanel';
 import ProofPanel from './ProofPanel';
 import MobileControls from './MobileControls';
+import ProofSystemInfo from './ProofSystemInfo';
 
 export default function MazeGame() {
   const [initialMaze, setInitialMaze] = useState<number[][]>([]);
   const [loading, setLoading] = useState(true);
   const [useLocalProof, setUseLocalProof] = useState(true);
+  const [proofSystem, setProofSystem] = useState<ProofSystemType>(DEFAULT_PROOF_SYSTEM);
   const [logs, setLogs] = useState<string[]>([]);
   const [proof, setProof] = useState('');
   const warmupInitiatedRef = useRef(false);
@@ -46,29 +52,51 @@ export default function MazeGame() {
 
   const gameState = useGameState(initialMaze);
 
-  // Use unified proof hook with mode parameter
-  const proofHook = useMazeProof(
-    useLocalProof ? 'local' : 'server',
-    mazeConfig.seed,
-    addLog,
-    setProof
-  );
+  // Initialize all proof hooks unconditionally (React rules)
+  const noirLocalHook = useMazeProof('local', mazeConfig.seed, addLog, setProof);
+  const noirServerHook = useMazeProof('server', mazeConfig.seed, addLog, setProof);
+  const groth16Hook = useMazeProofCircomGroth16(mazeConfig.seed, addLog, setProof);
+  const plonkHook = useMazeProofCircomPlonk(mazeConfig.seed, addLog, setProof);
+
+  // Select active proof hook based on mode and system
+  const proofHook = useLocalProof
+    ? (proofSystem === 'noir-ultrahonk'
+        ? noirLocalHook
+        : proofSystem === 'circom-groth16'
+          ? groth16Hook
+          : plonkHook)
+    : noirServerHook;
 
   // Warmup container when switching to server mode
   useEffect(() => {
     if (!useLocalProof && !warmupInitiatedRef.current) {
       warmupInitiatedRef.current = true;
-      proofHook.warmupContainer();
+      noirServerHook.warmupContainer();
     }
     // Reset the ref when switching back to local mode
     if (useLocalProof) {
       warmupInitiatedRef.current = false;
     }
-  }, [useLocalProof, proofHook.warmupContainer]);
+  }, [useLocalProof, noirServerHook]);
 
-  // Handle warmup when toggling to remote mode
+  // Auto-load Circom artifacts when switching to them (local mode only)
+  useEffect(() => {
+    if (!useLocalProof) return; // Only for local mode
+
+    if (proofSystem === 'circom-groth16' && 'loadArtifacts' in groth16Hook) {
+      groth16Hook.loadArtifacts();
+    } else if (proofSystem === 'circom-plonk' && 'loadArtifacts' in plonkHook) {
+      plonkHook.loadArtifacts();
+    }
+  }, [proofSystem, useLocalProof, groth16Hook, plonkHook]);
+
+  // Handle proof mode and system changes
   const handleUseLocalProofChange = useCallback((useLocal: boolean) => {
     setUseLocalProof(useLocal);
+  }, []);
+
+  const handleProofSystemChange = useCallback((system: ProofSystemType) => {
+    setProofSystem(system);
   }, []);
 
   const {
@@ -316,11 +344,16 @@ export default function MazeGame() {
               proving={proofHook.proving}
               autoSolving={autoSolving}
               useLocalProof={useLocalProof}
+              proofSystem={proofSystem}
               onUseLocalProofChange={handleUseLocalProofChange}
+              onProofSystemChange={handleProofSystemChange}
               onGenerateProof={handleGenerateProof}
               onAutoSolve={autoSolve}
               onReset={handleReset}
             />
+
+            {/* Proof System Info - only show when local mode is enabled */}
+            {useLocalProof && <ProofSystemInfo />}
 
             {/* Mobile Touch Controls */}
             <MobileControls

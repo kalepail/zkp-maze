@@ -1,10 +1,14 @@
+import type { ProofSystemType } from '../types/proofSystem';
+import { PROOF_SYSTEMS } from '../types/proofSystem';
 
 interface GameControlsProps {
   won: boolean;
   proving: boolean;
   autoSolving: boolean;
   useLocalProof: boolean;
+  proofSystem: ProofSystemType;
   onUseLocalProofChange: (useLocal: boolean) => void;
+  onProofSystemChange: (system: ProofSystemType) => void;
   onGenerateProof: () => void;
   onAutoSolve: () => void;
   onReset: () => void;
@@ -15,7 +19,9 @@ export default function GameControls({
   proving,
   autoSolving,
   useLocalProof,
+  proofSystem,
   onUseLocalProofChange,
+  onProofSystemChange,
   onGenerateProof,
   onAutoSolve,
   onReset,
@@ -33,6 +39,30 @@ export default function GameControls({
         />
         <span>Solve Locally (in-browser)</span>
       </label>
+
+      {/* Proof system selector - only shown for local mode */}
+      {useLocalProof && (
+        <div className="space-y-1">
+          <label className="block font-mono text-sm font-semibold text-gray-700">
+            Proof System:
+          </label>
+          <select
+            value={proofSystem}
+            onChange={(e) => onProofSystemChange(e.target.value as ProofSystemType)}
+            disabled={proving || autoSolving}
+            className="w-full border-2 border-black p-2 font-mono text-sm bg-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {Object.values(PROOF_SYSTEMS).map((system) => (
+              <option key={system.id} value={system.id}>
+                {system.name} - {system.description}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs font-mono text-gray-600 mt-1">
+            {PROOF_SYSTEMS[proofSystem].proofSize} proof • {PROOF_SYSTEMS[proofSystem].verifyTime} verify • {PROOF_SYSTEMS[proofSystem].downloadSize} download
+          </p>
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="flex gap-3 flex-wrap">

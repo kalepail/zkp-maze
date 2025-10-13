@@ -16,6 +16,17 @@ export default defineConfig({
     tailwindcss(),
     cloudflare(),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'noir': ['@noir-lang/noir_js'],
+          'barretenberg': ['@aztec/bb.js'],
+          'snarkjs': ['snarkjs'],
+        },
+      },
+    },
+  },
   optimizeDeps: {
     esbuildOptions: { target: 'esnext' },
     exclude: ['@noir-lang/noirc_abi', '@noir-lang/acvm_js'],
