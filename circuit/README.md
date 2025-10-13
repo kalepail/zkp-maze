@@ -64,19 +64,23 @@ nargo execute
 nargo check
 ```
 
-### Generate New Maze
+### Generate Maze
 
 From project root:
 
+**Use existing seed (2918957128):**
 ```bash
-# Generate maze with seed and update circuit
-pnpm run generate
-
-# Then recompile
-cd circuit && nargo compile
+pnpm run generate  # Generates with default seed
+pnpm run nargo     # Build circuit
 ```
 
-This updates `src/maze_config.nr` and `Prover.toml` with the new maze.
+**Generate new maze with custom seed:**
+```bash
+python3 generate_maze.py <your-seed> --no-preview
+pnpm run nargo     # Build circuit
+```
+
+Both update `src/maze_config.nr` and `Prover.toml` with the new maze.
 
 ## Integration
 
@@ -88,13 +92,24 @@ After compilation:
 
 ### Copy to Worker
 
+From project root:
 ```bash
-# From project root
-pnpm run compile  # Compiles and copies circuit.json
-pnpm run execute  # Executes and copies circuit.gz
+pnpm run nargo  # Complete workflow: compile → execute → prove → test
 ```
 
-Or manually:
+This automatically copies artifacts to `worker/container_src/`:
+- `circuit.json` (from compile)
+- `circuit.gz` (from execute)
+- `.bb-crs/` (from prove)
+
+Or use individual commands:
+```bash
+pnpm run compile  # Compiles and copies circuit.json
+pnpm run execute  # Executes and copies circuit.gz
+pnpm run prove    # Proves and copies CRS files
+```
+
+Manual copy:
 ```bash
 cp target/circuit.json ../worker/container_src/
 cp target/circuit.gz ../worker/container_src/

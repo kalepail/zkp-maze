@@ -85,11 +85,14 @@ See [worker/README.md](./worker/README.md) for details.
 # Install dependencies
 pnpm install
 
-# Run full circuit workflow (compile, execute, prove, test)
+# Generate maze with default seed (2918957128)
+pnpm run generate
+
+# Build circuit and run tests
 pnpm run nargo
 ```
 
-This runs the complete circuit setup:
+The `nargo` script runs the complete circuit workflow:
 1. `compile` - Compiles circuit and copies `circuit.json` to worker
 2. `execute` - Generates witness and copies `circuit.gz` to worker
 3. `prove` - Generates proof locally and copies CRS files to worker
@@ -127,18 +130,21 @@ docker run -p 8080:8080 noir-worker
 
 Worker runs on `http://localhost:8080`.
 
-### Generate New Maze
+### Generate Maze
 
+**Use existing seed (2918957128):**
 ```bash
-# Generate maze with seed (updates circuit)
-pnpm run generate
-
-# Or specify seed
-python3 generate_maze.py <seed> --no-preview
-
-# Then recompile
-pnpm run compile
+pnpm run generate  # Generates with default seed
+pnpm run nargo     # Build circuit
 ```
+
+**Generate new maze with custom seed:**
+```bash
+python3 generate_maze.py <your-seed> --no-preview
+pnpm run nargo     # Build circuit
+```
+
+Both update `circuit/src/maze_config.nr` and `circuit/Prover.toml`, then you rebuild with `pnpm run nargo`.
 
 ## Deployment
 
@@ -193,21 +199,38 @@ image = "<registry>/noir-worker:latest"
 
 ## Development Workflow
 
+**First time setup:**
 ```bash
-# 1. Generate maze (if needed)
+# 1. Generate maze with default seed (2918957128)
 pnpm run generate
 
-# 2. Build and test circuit (compile, execute, prove, test)
+# 2. Build and test circuit
 pnpm run nargo
 
 # 3. Start frontend
 pnpm run dev
-
-# 4. (Optional) Start worker locally
-cd worker && docker run -p 8080:8080 noir-worker
 ```
 
-For iterating on circuit changes, use individual scripts:
+**Generate new maze:**
+```bash
+# Use custom seed
+python3 generate_maze.py <your-seed> --no-preview
+
+# Rebuild circuit
+pnpm run nargo
+
+# Restart frontend to load new maze
+pnpm run dev
+```
+
+**Optional - run worker locally:**
+```bash
+cd worker
+docker build -t noir-worker -f Dockerfile.dev .
+docker run -p 8080:8080 noir-worker
+```
+
+**Iterating on circuit changes:**
 ```bash
 pnpm run compile  # After circuit code changes
 pnpm run execute  # After Prover.toml changes
@@ -227,11 +250,13 @@ pnpm run deploy       # Build and deploy frontend
 **Circuit:**
 ```bash
 pnpm run nargo        # Complete workflow: compile → execute → prove → test
-pnpm run generate     # Generate new maze configuration
+pnpm run generate     # Generate maze with seed 2918957128
 pnpm run compile      # Compile circuit, copy circuit.json to worker
 pnpm run execute      # Generate witness, copy circuit.gz to worker
 pnpm run prove        # Generate proof locally, copy CRS to worker
 ```
+
+For custom seeds, use `python3 generate_maze.py <seed> --no-preview` instead of `pnpm run generate`.
 
 **Development:**
 ```bash
