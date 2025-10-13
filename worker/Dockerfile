@@ -7,7 +7,7 @@
 FROM --platform=linux/amd64 rust:1.90.0-slim-bookworm AS build
 WORKDIR /app
 
-ARG VERSION=2.0.0
+ARG VERSION=2.0.6
 
 # Install minimal build dependencies
 RUN apt-get update && \
