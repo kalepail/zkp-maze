@@ -29,7 +29,8 @@ const BB_PROVE_TIMEOUT: Duration = Duration::from_secs(90); // 90s for proof gen
 #[derive(Serialize)]
 struct HealthResponse {
     status: &'static str,
-    bb_available: bool,
+    bb_version: String,
+    bb_crs_files: String,
 }
 
 #[derive(Serialize)]
@@ -127,17 +128,40 @@ async fn shutdown_signal() {
 }
 
 async fn health_handler() -> impl IntoResponse {
-    // Fast health check - just verify bb is available
-    let bb_available = Command::new("bb")
+    // Get bb version
+    let bb_version = Command::new("bb")
         .arg("--version")
         .output()
         .await
-        .map(|output| output.status.success())
-        .unwrap_or(false);
+        .map(|output| {
+            if output.status.success() {
+                String::from_utf8_lossy(&output.stdout).trim().to_string()
+            } else {
+                "unavailable".to_string()
+            }
+        })
+        .unwrap_or_else(|_| "unavailable".to_string());
+
+    // List ~/.bb-crs directory contents
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
+    let crs_path = format!("{}/.bb-crs", home_dir);
+    let bb_crs_files = Command::new("ls")
+        .arg(&crs_path)
+        .output()
+        .await
+        .map(|output| {
+            if output.status.success() {
+                String::from_utf8_lossy(&output.stdout).trim().to_string()
+            } else {
+                "directory not found or empty".to_string()
+            }
+        })
+        .unwrap_or_else(|_| "error reading directory".to_string());
 
     Json(HealthResponse {
         status: "ok",
-        bb_available,
+        bb_version,
+        bb_crs_files,
     })
 }
 
@@ -206,10 +230,13 @@ async fn prove_handler(request: Request) -> Result<impl IntoResponse, AppError> 
 }
 
 async fn execute_prove(witness_path: &PathBuf) -> Result<Vec<u8>, String> {
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
+    let crs_path = format!("{}/.bb-crs", home_dir);
+
     let prove_future = Command::new("bb")
         .args(&["prove", "-b", CIRCUIT_PATH, "-w"])
         .arg(witness_path)
-        .args(&["-o", "-"])
+        .args(&["-o", "-", "-c", &crs_path])
         .output();
 
     let output = timeout(BB_PROVE_TIMEOUT, prove_future)

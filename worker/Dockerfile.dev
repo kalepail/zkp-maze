@@ -65,25 +65,26 @@ COPY --from=build /app/target/aarch64-unknown-linux-gnu/release/noir-container /
 # bb binary
 COPY --from=bb-tools /usr/local/bin/bb /usr/local/bin/bb
 
-# Circuit bytecode
+# Circuit bytecode and CRS files
 WORKDIR /app
 COPY container_src/circuit.json /app/circuit.json
 COPY container_src/circuit.gz /tmp/circuit.gz
+COPY container_src/.bb-crs /root/.bb-crs
 
 # Warmup: Pre-download CRS and warm caches at build time
 #
 # Why: Barretenberg downloads large CRS (Common Reference String) files on first use.
 #      Without this, the first request takes 15s, second takes 10s (cache warming).
-#      This warmup step downloads CRS during build, so ALL requests are fast (~5s).
+#      This warmup step uses pre-downloaded CRS files and warms caches at build time.
 #
 # How: Run a real proof generation with actual witness data
 #      - May succeed or fail depending on witness validity (both are fine)
-#      - CRS files are downloaded and cached in the image layer
+#      - CRS files are already in /root/.bb-crs from COPY above
 #      - Subsequent containers start with CRS already cached
 #
 # Result: Eliminates slow first/second requests. Consistent ~5s performance from start.
-RUN timeout 30 bb prove -b /app/circuit.json -w /tmp/circuit.gz -o /tmp/proof || true && \
-    rm -rf /tmp/circuit.gz /tmp/proof
+RUN timeout 30 bb prove -b /app/circuit.json -w /tmp/circuit.gz -o /tmp -c /root/.bb-crs && \
+    rm -rf /tmp/circuit.gz /tmp/proof /tmp/public_inputs
 
 # Note: /tmp directory exists in distroless, and our Rust app creates /tmp/bb-proofs at startup
 # Note: Health checks should be configured at orchestration level (e.g., Docker Compose, K8s)

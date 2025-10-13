@@ -1,2 +1,4 @@
 circuit.gz
 circuit.json
+tmp/
+.bb-crs/

@@ -22,6 +22,7 @@ export function useMazeProof(
   const [warmedUp, setWarmedUp] = useState(false);
   const noirRef = useRef<Noir | null>(null);
   const backendRef = useRef<UltraHonkBackend | null>(null);
+  const warmupInProgressRef = useRef<Promise<void> | null>(null);
 
   // Initialize Noir and UltraHonkBackend once
   useEffect(() => {
@@ -39,21 +40,35 @@ export function useMazeProof(
   const warmupContainer = useCallback(async () => {
     if (mode === 'local' || warmedUp) return;
 
-    try {
-      addLog('🔥 Warming up remote container...');
-      const warmupStart = performance.now();
-      const response = await fetch('/api/health');
-      if (!response.ok) {
-        throw new Error('Health check failed - proof service is not ready');
-      }
-      const warmupDuration = ((performance.now() - warmupStart) / 1000).toFixed(1);
-      addLog(`Container warmed up ✅ (${warmupDuration}s)`);
-      setWarmedUp(true);
-    } catch (error) {
-      addLog('❌ Container warmup failed');
-      console.error('Container warmup error:', error);
-      throw error;
+    // If a warmup is already in progress, wait for it
+    if (warmupInProgressRef.current) {
+      return warmupInProgressRef.current;
     }
+
+    // Start a new warmup
+    const warmupPromise = (async () => {
+      try {
+        addLog('🔥 Warming up remote container...');
+        const warmupStart = performance.now();
+        const response = await fetch('/api/health');
+        if (!response.ok) {
+          throw new Error('Health check failed - proof service is not ready');
+        }
+        const warmupDuration = ((performance.now() - warmupStart) / 1000).toFixed(1);
+        addLog(`Container warmed up ✅ (${warmupDuration}s)`);
+        setWarmedUp(true);
+      } catch (error) {
+        addLog('❌ Container warmup failed');
+        console.error('Container warmup error:', error);
+        throw error;
+      } finally {
+        // Clear the in-progress ref when complete
+        warmupInProgressRef.current = null;
+      }
+    })();
+
+    warmupInProgressRef.current = warmupPromise;
+    return warmupPromise;
   }, [mode, warmedUp, addLog]);
 
   const generateProof = useCallback(
