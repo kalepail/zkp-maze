@@ -4,27 +4,59 @@ A zero-knowledge proof-based maze game built with Noir, React, and Cloudflare Wo
 
 ## Overview
 
-This project combines:
-- **Frontend**: React + Vite + Tailwind CSS for the interactive maze game
+This project demonstrates a complete ZK proof application stack:
+- **Frontend**: React 19 + Vite 7 + Tailwind CSS 4 for the interactive maze game
 - **Zero-Knowledge Proofs**: Noir circuits that verify maze completion without exposing the solution
-- **Backend**: Cloudflare Workers with Containers running Noir.js and bb.js for proof generation
-- **Deployment**: Cloudflare Pages for static assets and Workers for serverless compute
+- **Backend**: Rust-based Axum server in Cloudflare Containers using Barretenberg CLI for proof generation
+- **Deployment**: Cloudflare Pages for static assets and Workers with Containers for compute
 
 ## Architecture
 
-- `src/` - React frontend application
-- `circuit/` - Noir ZK circuit implementation
-- `worker/` - Cloudflare Worker API and Container configuration
-- `worker/container_src/` - Express server running inside Cloudflare Container with Noir proof generation
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Frontend (React + Vite)                                        │
+│  - Maze rendering and player controls                           │
+│  - Local proof generation (in-browser via WASM)                 │
+│  - Remote proof API calls                                       │
+└────────────┬────────────────────────────────────────────────────┘
+             │
+             ├─── Local Mode: Noir.js + bb.js (WebAssembly)
+             │
+             └─── Remote Mode: /api/prove
+                               │
+┌──────────────────────────────┴────────────────────────────────┐
+│  Cloudflare Worker (Hono)                                     │
+│  - Request routing and CORS                                   │
+│  - Timeout management (30s health, 120s prove)                │
+└────────────┬──────────────────────────────────────────────────┘
+             │
+             ├─── Durable Objects (Container Management)
+             │
+┌────────────┴──────────────────────────────────────────────────┐
+│  Cloudflare Container (Rust + Axum)                           │
+│  - Axum HTTP server                                           │
+│  - bb CLI proof generation (90s timeout)                      │
+│  - Witness file management with auto-cleanup                  │
+│  - Multi-core CPU utilization                                 │
+└───────────────────────────────────────────────────────────────┘
+```
+
+### Directory Structure
+
+- `src/` - React frontend application with game UI and proof logic
+- `circuit/` - Noir ZK circuit implementation and tests
+- `worker/` - Cloudflare Worker (Hono router) and Container configuration
+- `worker/container_src/` - Rust Axum server running inside Cloudflare Container
 
 ## Prerequisites
 
-- Node.js 22 or higher
-- pnpm (package manager)
-- [Nargo](https://noir-lang.org/docs/getting_started/installation/) (Noir toolchain)
-- Python 3 (for maze generation)
-- Cloudflare account (for deployment)
-- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) (Cloudflare's CLI tool)
+- **Node.js 22+** - JavaScript runtime
+- **pnpm** - Fast, disk space efficient package manager
+- **[Nargo](https://noir-lang.org/docs/getting_started/installation/)** - Noir toolchain (current: 1.0.0-beta.13)
+- **Python 3** - For deterministic maze generation
+- **Cloudflare account** - For production deployment (free tier works)
+- **[Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/)** - Cloudflare's deployment tool
+- **Rust 1.90+** (optional) - Only needed if modifying the container server
 
 ## Development Setup
 
@@ -111,13 +143,46 @@ The deployment includes:
 - Containerized Noir proof server with automatic scaling (max 10 instances)
 - Durable Objects for stateful container management
 
+### Container Architecture & Dockerfiles
+
+The project includes two Dockerfile configurations to support different development and deployment environments:
+
+#### `Dockerfile` (Production - AMD64)
+- **Platform**: `linux/amd64` (x86_64 architecture)
+- **Purpose**: Production deployment on Cloudflare infrastructure
+- **Why AMD64**: Cloudflare requires AMD64 containers for deployment
+- **Build Stages**:
+  1. Rust compilation targeting `x86_64-unknown-linux-gnu`
+  2. Barretenberg AMD64 binary download
+  3. Ubuntu 24.04 runtime with CRS warmup
+
+#### `Dockerfile.dev` (Local Development - ARM64)
+- **Platform**: `linux/arm64` (aarch64 architecture)
+- **Purpose**: Local testing on Apple Silicon (M1/M2/M3) Macs
+- **Why ARM64**: Native performance on ARM-based development machines
+- **Build Stages**:
+  1. Rust compilation targeting `aarch64-unknown-linux-gnu`
+  2. Barretenberg ARM64 binary download
+  3. Ubuntu 24.04 runtime with CRS warmup
+
+**Key Difference**: The only architectural differences are:
+- `--platform` flag (amd64 vs arm64)
+- Rust target triple (x86_64 vs aarch64)
+- Barretenberg binary variant (amd64-linux vs arm64-linux)
+
+**Local Development Note**: If you're developing on an ARM-based Mac (Apple Silicon), you should use `Dockerfile.dev` for local container testing with `wrangler dev`. The `wrangler.jsonc` configuration automatically selects the correct Dockerfile based on the environment (`dev` uses `Dockerfile.dev`, production uses `Dockerfile`).
+
+**CRS Warmup**: Both Dockerfiles include a build-time warmup step that pre-downloads the Barretenberg Common Reference String (CRS) files. This eliminates the 15-20 second delay on first proof generation, ensuring consistent ~5s proof times from the start.
+
 ### Environment Configuration
 
 The deployment is configured in `wrangler.jsonc`:
-- Container uses `standard-4` instance type
-- Auto-scales up to 10 instances
-- 30-second timeout on proof generation requests
-- Containers sleep after 1 minute of inactivity
+- Container uses `standard-4` instance type (4 CPU cores, 4GB RAM)
+- Auto-scales from 1 to 10 instances based on demand
+- Containers sleep after 5 minutes of inactivity
+- Two environments:
+  - **dev**: Uses `Dockerfile.dev` for ARM64 local testing
+  - **production**: Uses `Dockerfile` for AMD64 Cloudflare deployment
 
 ## Available Scripts
 
