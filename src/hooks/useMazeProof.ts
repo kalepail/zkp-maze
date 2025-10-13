@@ -17,6 +17,11 @@ export function useMazeProof(
 ) {
   const [proving, setProving] = useState(false);
 
+  // No-op warmup for local proof (matches server hook interface)
+  const warmupContainer = useCallback(async () => {
+    // Local proof doesn't need warmup
+  }, []);
+
   const generateProof = useCallback(
     async (moves: number[]) => {
       try {
@@ -75,5 +80,6 @@ export function useMazeProof(
   return {
     proving,
     generateProof,
+    warmupContainer,
   };
 }

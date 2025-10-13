@@ -9,8 +9,8 @@ export class MyContainer extends Container<Env> {
   autoScale = true;
   // Port the container listens on (default: 8080)
   defaultPort = 8080;
-  // Time before container sleeps due to inactivity (default: 30s)
-  sleepAfter = "1m";
+  // Time before container sleeps due to inactivity
+  sleepAfter = "5m";
   // Environment variables passed to the container
   envVars = {
     NODE_ENV: "production",
@@ -48,46 +48,48 @@ app.use('*', cors({
   credentials: true,
 }));
 
-// Apply 30-second timeout to all routes
+// Apply 2-minute timeout for prove endpoint (ZK proofs can take time)
+app.use('/prove', timeout(120000));
+
+// Apply 30-second timeout to other routes
 app.use('*', timeout(30000));
 
 // Home route with available endpoints
 app.get("/", (c) => {
   return c.json({
     name: "Noir ZK Proof Service",
+    version: "2.0.1",
+    runtime: "Rust + Barretenberg CLI",
     endpoints: {
-      "POST /api/witness": "Generate witness from circuit inputs",
-      "POST /api/prove": "Generate ZK proof from witness",
-      "POST /api/verify": "Verify a ZK proof",
+      "POST /api/prove": "Generate ZK proof from witness (using bb executable)",
       "GET /api/health": "Health check",
     },
-    note: "All binary data should be base64 encoded",
+    note: "All binary data should be base64 encoded. This service uses the Barretenberg CLI for proof generation.",
   });
 });
 
 // Health check endpoint - proxy to container
 app.get("/health", async (c) => {
-  const container = getContainer(c.env.MY_CONTAINER);
-  return await container.fetch(c.req.raw);
+  try {
+    const container = getContainer(c.env.MY_CONTAINER);
+    const response = await container.fetch(c.req.raw);
+    return response;
+  } catch (error) {
+    console.error('Health check error:', error);
+    return c.json({ error: 'Container health check failed', message: String(error) }, 500);
+  }
 });
 
-// POST /witness - Generate witness from inputs
-app.post("/witness", async (c) => {
-  const container = getContainer(c.env.MY_CONTAINER);
-  return await container.fetch(c.req.raw);
-});
-
-// POST /prove - Generate proof from witness
+// POST /prove - Generate proof from witness using bb executable
 app.post("/prove", async (c) => {
-  const container = getContainer(c.env.MY_CONTAINER);
-  // const container = await getRandom(c.env.MY_CONTAINER, MAX_INSTANCES);
-  return await container.fetch(c.req.raw);
-});
-
-// POST /verify - Verify a proof
-app.post("/verify", async (c) => {
-  const container = getContainer(c.env.MY_CONTAINER);
-  return await container.fetch(c.req.raw);
+  try {
+    const container = getContainer(c.env.MY_CONTAINER);
+    const response = await container.fetch(c.req.raw);
+    return response;
+  } catch (error) {
+    console.error('Prove error:', error);
+    return c.json({ error: 'Container prove failed', message: String(error) }, 500);
+  }
 });
 
 // Error handling middleware

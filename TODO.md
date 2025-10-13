@@ -1,0 +1,3 @@
+- [ ] write a version of the noir circuit in traditional Circom to see how it compares
+- [ ] write a version of this with risc0 to see how it compares (I think we should be able to get generic maze proving)
+- [x] do witness gen and proof verification locally (right now all three (witness, prover and verification) all happen remotely when remote is selected)

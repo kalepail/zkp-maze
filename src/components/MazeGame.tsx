@@ -54,6 +54,14 @@ export default function MazeGame() {
   // Select which proof hook to use based on toggle
   const proofHook = useLocalProof ? localProofHook : serverProofHook;
 
+  // Handle warmup when toggling to remote mode
+  const handleUseLocalProofChange = useCallback((useLocal: boolean) => {
+    setUseLocalProof(useLocal);
+    if (!useLocal) {
+      serverProofHook.warmupContainer();
+    }
+  }, [serverProofHook]);
+
   const {
     maze,
     playerPos,
@@ -299,7 +307,7 @@ export default function MazeGame() {
               proving={proofHook.proving}
               autoSolving={autoSolving}
               useLocalProof={useLocalProof}
-              onUseLocalProofChange={setUseLocalProof}
+              onUseLocalProofChange={handleUseLocalProofChange}
               onGenerateProof={handleGenerateProof}
               onAutoSolve={autoSolve}
               onReset={handleReset}

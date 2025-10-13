@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
-# Production Dockerfile for Cloudflare (AMD64)
+# Development Dockerfile for Apple Silicon (ARM64)
 
 ############################
 # 1) Build Rust server     #
 ############################
-FROM --platform=linux/amd64 rust:1.90.0-slim-bookworm AS build
+FROM --platform=linux/arm64 rust:1.90.0-slim-bookworm AS build
 WORKDIR /app
 
-ARG VERSION=2.0.0
+ARG VERSION=2.0.6
 
 # Install minimal build dependencies
 RUN apt-get update && \
@@ -24,13 +24,13 @@ RUN mkdir src && \
 # Build application
 COPY container_src/src ./src
 RUN touch src/main.rs && \
-    cargo build --release --target x86_64-unknown-linux-gnu
+    cargo build --release --target aarch64-unknown-linux-gnu
 
 
 ##################################
-# 2) Install bb (AMD64)          #
+# 2) Install bb (ARM64)          #
 ##################################
-FROM --platform=linux/amd64 ubuntu:24.04 AS bb-tools
+FROM --platform=linux/arm64 ubuntu:24.04 AS bb-tools
 
 # Minimal deps for download
 RUN apt-get update && \
@@ -38,9 +38,9 @@ RUN apt-get update && \
     update-ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Download AMD64 barretenberg binary
+# Download ARM64 barretenberg binary
 ARG BB_VERSION=0.85.0
-RUN curl -fsSL "https://github.com/AztecProtocol/aztec-packages/releases/download/v${BB_VERSION}/barretenberg-amd64-linux.tar.gz" -o /tmp/bb.tar.gz && \
+RUN curl -fsSL "https://github.com/AztecProtocol/aztec-packages/releases/download/v${BB_VERSION}/barretenberg-arm64-linux.tar.gz" -o /tmp/bb.tar.gz && \
     tar -xzf /tmp/bb.tar.gz -C /usr/local/bin && \
     rm /tmp/bb.tar.gz && \
     chmod +x /usr/local/bin/bb
@@ -52,7 +52,7 @@ RUN curl -fsSL "https://github.com/AztecProtocol/aztec-packages/releases/downloa
 # Use Ubuntu 24.04 for runtime (required for GLIBC 2.38+ and GLIBCXX 3.4.31+)
 # 32a6b75ef0665160dd86b7430ec54e3fd8adb64   21MB (virtual 196MB) ubuntu:24.04
 # 32a6b75ef0665160dd86b7430ec54e3fd8adb64   21MB (virtual 212MB) debian:trixie-slim
-FROM --platform=linux/amd64 ubuntu:24.04
+FROM --platform=linux/arm64 ubuntu:24.04
 
 # Install runtime dependencies for bb
 RUN apt-get update && \
@@ -60,7 +60,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # App binary
-COPY --from=build /app/target/x86_64-unknown-linux-gnu/release/noir-container /server
+COPY --from=build /app/target/aarch64-unknown-linux-gnu/release/noir-container /server
 
 # bb binary
 COPY --from=bb-tools /usr/local/bin/bb /usr/local/bin/bb
@@ -86,7 +86,7 @@ RUN timeout 30 bb prove -b /app/circuit.json -w /tmp/circuit.gz -o /tmp/proof ||
     rm -rf /tmp/circuit.gz /tmp/proof
 
 # Note: /tmp directory exists in distroless, and our Rust app creates /tmp/bb-proofs at startup
-# Note: Health checks should be configured at orchestration level (e.g., Cloudflare Workers, K8s)
+# Note: Health checks should be configured at orchestration level (e.g., Docker Compose, K8s)
 #       using the /api/health endpoint since distroless has no shell/curl for HEALTHCHECK
 
 EXPOSE 8080

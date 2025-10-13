@@ -1,0 +1,29 @@
+[package]
+name = "noir-container"
+version = "2.0.0"
+edition = "2021"
+rust-version = "1.90"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "process", "io-util", "signal", "fs"] }
+
+# HTTP server
+axum = "0.8"
+tower-http = { version = "0.6", features = ["timeout"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+
+# Utilities
+uuid = { version = "1.18", features = ["v4", "fast-rng"] }
+tokio-util = { version = "0.7", features = ["io"] }
+futures = "0.3"
+
+[profile.release]
+opt-level = "z"          # Most aggressive size optimization
+overflow-checks = true   # Runtime safety checks for integer overflow
+strip = true             # Remove all symbols and debug info
+panic = "abort"          # Remove panic unwinding code
+codegen-units = 1        # Better cross-crate optimization
+lto = true               # Link-time optimization

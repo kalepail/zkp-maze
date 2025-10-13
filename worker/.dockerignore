@@ -1,45 +1,30 @@
-# Dependencies
-node_modules
-npm-debug.log
-yarn-error.log
-package-lock.json
-pnpm-lock.yaml
+# Rust build artifacts
+target/
+**/*.rs.bk
 
 # Git
 .git
 .gitignore
 
-# IDE
-.vscode
-.idea
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Test and coverage
-coverage
-*.test.js
-*.spec.js
-test
-tests
-__tests__
-
 # Documentation
+*.md
 README.md
-docs
 
-# Logs
-logs
+# System files
+.DS_Store
 *.log
 
-# Environment
-.env
-.env.*
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# Build artifacts
-dist
-build
+# Docker files
+Dockerfile*
+.dockerignore
+
+# Legacy Go files (not used by Rust server)
+*.go
+go.mod
+go.sum

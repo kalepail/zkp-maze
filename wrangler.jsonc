@@ -36,5 +36,34 @@
 			],
 			"tag": "v1"
 		}
-	]
+	],
+	"env": {
+		"dev": {
+			"name": "noir-maze-challenge-dev",
+			"containers": [
+				{
+					"class_name": "MyContainer",
+					"image": "worker/Dockerfile.dev",
+					"instance_type": "standard-4",
+					"max_instances": 10
+				}
+			],
+			"durable_objects": {
+				"bindings": [
+					{
+						"class_name": "MyContainer",
+						"name": "MY_CONTAINER"
+					}
+				]
+			},
+			"migrations": [
+				{
+					"new_sqlite_classes": [
+						"MyContainer"
+					],
+					"tag": "v1"
+				}
+			]
+		}
+	}
 }
