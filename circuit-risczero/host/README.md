@@ -38,7 +38,7 @@ The host orchestrates the zkVM, passing inputs to guest programs and verifying t
 ./target/release/host verify-path <maze_proof_file> <moves_file>
 
 # Example
-./target/release/host verify-path 2918957128_maze_proof.json example_moves.json
+./target/release/host verify-path 2918957128_maze_proof.json 2918957128_moves.json
 ```
 
 **What it does:**
@@ -106,12 +106,12 @@ JSON array of direction codes:
 - `2` = SOUTH (down)
 - `3` = WEST (left)
 
-Example:
+Example `moves.json`:
 ```json
 [1, 1, 2, 2, 1, 1, 2, 2]
 ```
 
-See `example_moves.json` for a complete 312-move BFS solution.
+The `2918957128_moves.json` file in the parent directory contains a complete 312-move BFS solution for the default maze.
 
 ### MazeProof File (`<seed>_maze_proof.json`)
 
@@ -173,10 +173,8 @@ host/
 ├── src/
 │   ├── lib.rs              # Library API (generate_maze_proof, verify_path_proof)
 │   └── main.rs             # CLI entry point
-├── tests/
-│   └── integration_test.rs # Integration tests
-├── example_moves.json      # Valid 312-move BFS solution
-└── short_moves.json        # Invalid short path
+└── tests/
+    └── integration_test.rs # Integration tests
 ```
 
 **Key files:**

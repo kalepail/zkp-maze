@@ -137,10 +137,8 @@ circuit-risczero/
 │   ├── src/
 │   │   ├── lib.rs         # generate_maze_proof(), verify_path_proof()
 │   │   └── main.rs        # CLI with two commands
-│   ├── tests/
-│   │   └── integration_test.rs  # Integration tests
-│   ├── example_moves.json       # Valid 312-move BFS solution
-│   └── short_moves.json         # Invalid short solution
+│   └── tests/
+│       └── integration_test.rs  # Integration tests
 └── methods/
     ├── maze-gen/          # Stage 1: Maze generation guest
     │   └── src/
@@ -197,14 +195,14 @@ cargo test --release
 ./target/release/host verify-path <maze_proof_file> <moves_file>
 
 # Example
-./target/release/host verify-path 2918957128_maze_proof.json example_moves.json
+./target/release/host verify-path 2918957128_maze_proof.json 2918957128_moves.json
 ```
 
 **Arguments:**
 - `seed`: Unsigned 32-bit integer identifying the maze
 - `output_file`: Optional JSON file to save the maze proof (defaults to `<seed>_maze_proof.json`)
 - `maze_proof_file`: JSON file containing the maze proof
-- `moves_file`: JSON file with moves array (see `host/example_moves.json` for format)
+- `moves_file`: JSON file with moves array (see format below)
 
 **Moves format:** JSON array of direction values
 - `0` = NORTH (up)
