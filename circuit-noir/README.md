@@ -1,54 +1,58 @@
 # Noir Circuit
 
-Zero-knowledge circuit for verifying maze solutions. Proves you found a valid path from start to end without revealing your moves.
+Zero-knowledge circuit for maze solution verification using Noir and Barretenberg.
 
-## Architecture
+## Overview
+
+This circuit proves a player successfully navigated from start (1,1) to end (40,40) without revealing their specific moves.
+
+**Inputs (Private):**
+- `moves: [u8; 500]` - Move sequence (0=NORTH, 1=EAST, 2=SOUTH, 3=WEST)
+- `maze_seed: Field` - Seed identifying the maze
+
+**Outputs (Public):**
+- Zero-knowledge proof of valid solution
+
+## How It Works
 
 ```
-Input: moves[500], maze_seed
-  ↓
-Verify maze identity (seed)
-  ↓
-Start at (1, 1)
-  ↓
-For each move:
-  - Check bounds (< 41)
-  - Check walls (cell == 1)
-  - Update position
-  ↓
-Assert reached (40, 40)
-  ↓
-Output: Proof
+1. Verify maze seed matches expected maze
+2. Start at position (1, 1)
+3. For each move:
+   - Validate bounds (position < 41)
+   - Check no wall collision (grid[pos] == 1)
+   - Update position based on direction
+4. Assert final position is (40, 40)
 ```
+
+**Invalid moves:** Directions >3 result in no-op (position unchanged). This is secure because no-ops cannot help reach the goal or bypass wall checks.
 
 ## Files
 
-- `src/main.nr` - Main circuit logic with security validations
-- `src/maze_config.nr` - Generated maze configuration (41x41 grid)
-- `src/test_solutions.nr` - Test solution paths
-- `Nargo.toml` - Noir project configuration
-- `Prover.toml` - Witness inputs for proof generation
+- `src/main.nr` - Circuit logic with position tracking and validation
+- `src/maze_config.nr` - Generated 41×41 grid and seed (from `generate_maze.py`)
+- `src/test_solutions.nr` - Test cases for valid/invalid solutions
+- `Nargo.toml` - Project configuration
+- `Prover.toml` - Witness inputs (generated from maze solver)
 
-## Security Model
+## Security Guarantees
 
-The circuit enforces:
-1. Maze identity via seed verification
-2. Fixed start position (1, 1)
-3. Sequential movement (±1 per move)
-4. Bounds checking (all positions < 41)
-5. Wall collision detection (all cells = 1)
-6. Goal achievement (reach 40, 40)
+The circuit cryptographically proves:
+1. **Maze identity** - Correct seed used
+2. **Start position** - Begin at (1, 1)
+3. **Valid moves** - Only ±1 movement per step
+4. **Bounds checking** - All positions within 41×41 grid
+5. **Wall detection** - No walking through walls (grid value = 1)
+6. **Goal achievement** - Reach (40, 40)
 
-Invalid directions result in no-ops (secure by design - saves ~3,500 gates).
-
-## Development
+## Usage
 
 ### Prerequisites
 
-- [Noir](https://noir-lang.org/docs/getting_started/installation/) v1.0.0-beta.9+
-- [Barretenberg](https://github.com/AztecProtocol/aztec-packages/tree/master/barretenberg) CLI
+- Noir CLI v1.0.0-beta.9+ (`noirup`)
+- Barretenberg CLI (optional, for local proving)
 
-### Commands
+### Basic Commands
 
 ```bash
 # Compile circuit
@@ -57,98 +61,92 @@ nargo compile
 # Run tests
 nargo test
 
-# Execute with witness
+# Generate witness from Prover.toml
 nargo execute
 
-# Check circuit (no test execution)
+# Type check without execution
 nargo check
 ```
 
-### Generate Maze
+### Generate New Maze
 
 From project root:
 
-**Use existing seed (2918957128):**
 ```bash
-pnpm run generate  # Generates with default seed
-pnpm run nargo     # Build circuit
+# Use default seed (2918957128)
+pnpm run generate
+
+# Use custom seed
+python3 generate_maze.py <seed> --no-preview
+
+# Rebuild circuit
+pnpm run nargo
 ```
 
-**Generate new maze with custom seed:**
-```bash
-python3 generate_maze.py <your-seed> --no-preview
-pnpm run nargo     # Build circuit
-```
+This updates `src/maze_config.nr` and `Prover.toml`.
 
-Both update `src/maze_config.nr` and `Prover.toml` with the new maze.
-
-## Integration
-
-### Circuit Artifacts
-
-After compilation:
-- `target/circuit.json` - Circuit bytecode (copy to worker)
-- `target/circuit.gz` - Witness data (after nargo execute)
-
-### Copy to Worker
+### Complete Workflow
 
 From project root:
 ```bash
-pnpm run nargo  # Complete workflow: compile → execute → prove → test
+pnpm run nargo
 ```
 
-This automatically copies artifacts to `worker/container_src/`:
-- `circuit.json` (from compile)
-- `circuit.gz` (from execute)
-- `.bb-crs/` (from prove)
+Runs: compile → execute → prove → test and copies artifacts to `worker/container_src/`:
+- `circuit.json` - Circuit bytecode
+- `circuit.gz` - Witness data
+- `.bb-crs/` - Trusted setup files
 
-Or use individual commands:
+Individual steps:
 ```bash
-pnpm run compile  # Compiles and copies circuit.json
-pnpm run execute  # Executes and copies circuit.gz
-pnpm run prove    # Proves and copies CRS files
-```
-
-Manual copy:
-```bash
-cp target/circuit.json ../worker/container_src/
-cp target/circuit.gz ../worker/container_src/
+pnpm run compile  # Compile and copy circuit.json
+pnpm run execute  # Generate witness and copy circuit.gz
+pnpm run prove    # Generate proof and copy CRS files
 ```
 
 ## Proof Generation
 
-The circuit outputs constraints that Barretenberg proves:
+### Local (Optional)
 
 ```bash
-# Generate proof (from circuit dir)
+# From circuit directory
 bb prove -b target/circuit.json -w target/circuit.gz -o target/
-
-# Verify proof
 bb verify -k target/vk -p target/proof
 ```
 
-Production proofs are generated by the worker container.
+### Production
 
-## Circuit Stats
+Proofs are generated by the Cloudflare Worker container using Barretenberg CLI. See [worker/README.md](../worker/README.md).
 
-- Max moves: 500
-- Maze size: 41×41 = 1,681 cells
-- Gate count: ~32,000 (optimized)
-- Proof time: ~2-5s (in container)
+## Circuit Statistics
+
+- **Max moves:** 500
+- **Grid size:** 41×41 (1,681 cells)
+- **Gate count:** ~32,000 (optimized with no-op handling)
+- **Proof time:** ~2-5 seconds (in container)
 
 ## Troubleshooting
 
-**Compilation fails**: Ensure Noir version matches `Nargo.toml`
+**Compilation fails:**
 ```bash
 nargo --version  # Should be 1.0.0-beta.9+
+cd circuit-noir && rm -rf target && nargo compile
 ```
 
-**Test failures**: Regenerate maze if `maze_config.nr` is out of sync
+**Tests fail:**
 ```bash
+# Regenerate maze if out of sync
 pnpm run generate
+nargo test
 ```
 
-**Proof generation fails**: Check that `circuit.json` and `circuit.gz` exist
+**Missing artifacts:**
 ```bash
-ls -la target/
+ls -la target/  # Verify circuit.json and circuit.gz exist
 ```
+
+## Resources
+
+- [Noir Language Documentation](https://noir-lang.org/)
+- [Barretenberg Proving System](https://github.com/AztecProtocol/aztec-packages/tree/master/barretenberg)
+- [Parent README](../README.md)

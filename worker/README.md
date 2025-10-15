@@ -1,128 +1,136 @@
-# Worker
+# Cloudflare Worker + Container
 
-Cloudflare Worker with container running Barretenberg CLI for zero-knowledge proof generation.
+Zero-knowledge proof generation service using Cloudflare Workers and containerized Barretenberg CLI.
+
+## Overview
+
+This service generates ZK proofs for maze solutions using a two-tier architecture:
+
+1. **Cloudflare Worker** - Hono API that proxies requests
+2. **Container** - Rust service running Barretenberg CLI
+
+**Why containers?** Barretenberg CLI requires native binaries and CRS files (~100MB), which exceed Worker limits. Containers provide isolated environments with full system access.
 
 ## Architecture
 
 ```
-Cloudflare Worker (index.ts)
-  ↓ Hono API Layer
-  ↓ Proxy requests
+Client (Frontend)
+  ↓ POST /api/prove (witness data)
   ↓
-Container (Rust)
-  ↓ Axum HTTP Server
-  ↓ Stream witness data
-  ↓ Execute bb prove
-  ↓ Return proof bytes
+Cloudflare Worker (index.ts)
+  ↓ Hono API + CORS
+  ↓ Proxy request
+  ↓
+Container (Rust + Axum)
+  ↓ Stream witness → /tmp
+  ↓ Execute: bb prove -b circuit.json -w witness
+  ↓ Stream proof bytes
+  ↓ Cleanup temp files
+  ↓
+Client (Frontend)
+  ← Proof bytes (application/octet-stream)
 ```
 
 ## Components
 
 ### Worker (`index.ts`)
 
-Hono-based API server that proxies to container:
+Lightweight Hono-based API:
 
-- `POST /api/prove` - Generate ZK proof (2min timeout)
+**Endpoints:**
+- `POST /api/prove` - Proxy to container (2min timeout)
 - `GET /api/health` - Container health check
+
+**Features:**
 - CORS enabled for all origins
-- Request logging and error handling
+- Request logging
+- Error handling and timeout protection
 
 ### Container (`container_src/`)
 
-Rust service using Axum that wraps Barretenberg CLI:
+Rust service wrapping Barretenberg CLI:
 
 **Files:**
-- `src/main.rs` - HTTP server and bb CLI wrapper
-- `Cargo.toml` - Rust dependencies
-- `circuit.json` - Compiled Noir circuit (copied from circuit/)
-- `.bb-crs/` - CRS files for proof generation
+- `src/main.rs` - Axum HTTP server + bb CLI wrapper
+- `Cargo.toml` - Dependencies (axum, tokio, uuid)
+- `circuit.json` - Compiled circuit (from `circuit-noir/`)
+- `.bb-crs/` - Trusted setup files (bundled in image)
 
-**API:**
-- `POST /api/prove` - Accepts witness data, returns proof bytes
-- `GET /api/health` - Returns bb version and CRS status
-
-**Flow:**
-1. Receive witness data via streaming upload
-2. Write to `/tmp/bb-proofs/{uuid}.witness`
+**Proof Generation Flow:**
+1. Receive witness via streaming upload
+2. Save to `/tmp/bb-proofs/{uuid}.witness`
 3. Execute `bb prove -b circuit.json -w witness -o - -c ~/.bb-crs`
-4. Stream proof bytes back to client
+4. Stream proof bytes to client
 5. Clean up witness file
 
-## Local Development
+**Endpoints:**
+- `POST /api/prove` - Generate proof from witness
+- `GET /api/health` - Return bb version + CRS status
+
+## Quick Start
 
 ### Prerequisites
 
-- [Docker](https://www.docker.com/) 20+
-- [Wrangler](https://developers.cloudflare.com/workers/wrangler/) 4+
+- Docker 20+
+- Wrangler 4+ (for deployment)
 
-### Build Container
-
-```bash
-# Development build (faster, larger)
-docker build -t noir-worker:dev -f Dockerfile.dev .
-
-# Production build (optimized, smaller)
-docker build -t noir-worker:prod -f Dockerfile .
-```
-
-### Run Container
+### Build and Run
 
 ```bash
-# Development
-docker run -p 8080:8080 noir-worker:dev
+# Build development container
+docker build -t noir-worker -f Dockerfile.dev .
 
-# Production
-docker run -p 8080:8080 noir-worker:prod
-
-# With custom circuit
-docker run -p 8080:8080 \
-  -v $(pwd)/container_src/circuit.json:/app/circuit.json \
-  noir-worker:dev
+# Run container
+docker run -p 8080:8080 noir-worker
 ```
 
-Container runs on `http://localhost:8080`.
+Container runs on `http://localhost:8080`
 
-### Test API
+### Test
 
 ```bash
 # Health check
 curl http://localhost:8080/api/health
 
-# Generate proof (requires witness data)
+# Generate proof (requires witness from circuit-noir/target/)
 curl -X POST http://localhost:8080/api/prove \
   -H "Content-Type: application/octet-stream" \
-  --data-binary @circuit.gz \
+  --data-binary @../circuit-noir/target/circuit.gz \
   --output proof
 ```
 
-### Development Workflow
+### Workflow
 
-1. Update circuit in `../circuit/`
-2. Copy artifacts to container:
-   ```bash
-   cp ../circuit/target/circuit.json container_src/
-   cp ../circuit/target/circuit.gz container_src/
-   ```
-3. Rebuild container:
-   ```bash
-   docker build -t noir-worker:dev -f Dockerfile.dev .
-   ```
-4. Test locally:
-   ```bash
-   docker run -p 8080:8080 noir-worker:dev
-   ```
-
-### Debug Container
+**After circuit changes:**
 
 ```bash
-# Run with shell
-docker run -it --entrypoint /bin/sh noir-worker:dev
+# From project root
+pnpm run nargo  # Compiles circuit and copies artifacts
 
-# Check bb installation
-docker run noir-worker:dev bb --version
+# Rebuild container
+cd worker
+docker build -t noir-worker -f Dockerfile.dev .
 
-# Check CRS files
-docker run noir-worker:dev ls -la ~/.bb-crs
+# Test
+docker run -p 8080:8080 noir-worker
+```
+
+Artifacts automatically copied:
+- `circuit.json` → `container_src/circuit.json`
+- `circuit.gz` → `container_src/circuit.gz`
+- `.bb-crs/` → `container_src/.bb-crs/`
+
+### Debug
+
+```bash
+# Interactive shell
+docker run -it --entrypoint /bin/sh noir-worker
+
+# Check bb version
+docker run noir-worker bb --version
+
+# Verify CRS files
+docker run noir-worker ls -la ~/.bb-crs
 
 # View logs
 docker logs <container-id>
@@ -130,39 +138,29 @@ docker logs <container-id>
 
 ## Deployment
 
-### Prerequisites
+### Requirements
 
-- Cloudflare Workers Paid plan (containers require paid plan)
-- Container registry (Docker Hub, GitHub Container Registry, etc.)
-- Wrangler authenticated (`wrangler login`)
+- Cloudflare Workers **Paid plan** (containers require paid tier)
+- Container registry (Docker Hub, GHCR, etc.)
+- Wrangler authenticated: `wrangler login`
 
-### Push Container
+### Steps
+
+**1. Build and push container:**
 
 ```bash
-# Build for production
+# Build production image
 docker build -t <registry>/noir-worker:latest -f Dockerfile .
 
 # Push to registry
 docker push <registry>/noir-worker:latest
 
-# Tag specific version
+# Optional: Tag version
 docker tag <registry>/noir-worker:latest <registry>/noir-worker:v1.0.0
 docker push <registry>/noir-worker:v1.0.0
 ```
 
-### Deploy Worker
-
-```bash
-# Deploy with wrangler
-wrangler deploy
-
-# Deploy to specific environment
-wrangler deploy --env production
-```
-
-### Configure Container Binding
-
-Create `wrangler.toml` in worker directory:
+**2. Configure `wrangler.toml`:**
 
 ```toml
 name = "noir-maze-worker"
@@ -174,103 +172,104 @@ binding = "MY_CONTAINER"
 image = "<registry>/noir-worker:latest"
 ```
 
-Then deploy:
+**3. Deploy:**
+
 ```bash
 wrangler deploy
 ```
 
-### Environment Variables
-
-Set in `wrangler.toml`:
-
-```toml
-[env.production]
-vars = { NODE_ENV = "production" }
-
-[[env.production.container]]
-binding = "MY_CONTAINER"
-image = "<registry>/noir-worker:v1.0.0"
-```
-
-### Update Production
+### Update Deployment
 
 ```bash
 # Build new version
 docker build -t <registry>/noir-worker:v1.0.1 -f Dockerfile .
-
-# Push
 docker push <registry>/noir-worker:v1.0.1
 
 # Update wrangler.toml with new tag
-# Then deploy
-wrangler deploy --env production
+# Deploy
+wrangler deploy
 ```
 
-## Docker Configuration
+## Docker Images
 
 ### Dockerfile (Production)
 
-Multi-stage build:
-1. **Builder stage**: Compile Rust service
-2. **BB installer**: Download and extract Barretenberg
-3. **Runtime stage**: Alpine-based minimal image
+Multi-stage build for minimal size:
+
+**Stages:**
+1. **Builder** - Compile Rust service (release mode)
+2. **BB Installer** - Download and extract Barretenberg CLI
+3. **Runtime** - Alpine-based minimal image
 
 **Optimizations:**
-- Rust release profile with LTO and size optimization
+- LTO and size optimization flags
 - Stripped binaries
 - Multi-platform support (amd64/arm64)
-- CRS files bundled
+- Bundled CRS files (~100MB)
 
 **Size:** ~150MB compressed
 
 ### Dockerfile.dev (Development)
 
-Simpler build for faster iteration:
+Faster build for iteration:
 - Debug symbols included
-- Faster compilation
+- Faster compilation (no LTO)
 - Same runtime behavior
 
 **Size:** ~200MB compressed
 
-## Container Specs
+## Performance
+
+### Container Specs
 
 **Resources:**
-- CPU: 1 core (autoscale)
-- Memory: 256MB - 1GB (autoscale)
-- Timeout: 120s (2 minutes)
+- CPU: 1 core
+- Memory: 256MB - 1GB
+- Timeout: 120s
 - Port: 8080
 
 **Autoscaling:**
-- Sleep after 5m inactivity
-- Wake on request
+- Sleeps after 5min inactivity
+- Wakes on request
 - Cold start: ~2-5s
 
-**Proof Generation:**
-- Time: 2-5s (warm)
+### Proof Generation
+
+**Timing:**
+- Cold start: ~2-7s total
+- Warm: ~2-5s
+- Network overhead: ~100-500ms
+
+**Resources:**
 - Memory: ~200-500MB
+- CPU: Single core
 - Output: ~2KB proof
 
-## API Reference
+## API
 
 ### POST /api/prove
 
-Generate ZK proof from witness data.
+Generate zero-knowledge proof from witness data.
 
 **Request:**
-```
+```http
+POST /api/prove
 Content-Type: application/octet-stream
-Body: witness data (gzipped)
+
+<witness data (gzipped)>
 ```
 
 **Response:**
-```
+```http
+200 OK
 Content-Type: application/octet-stream
-Body: proof bytes
+
+<proof bytes>
 ```
 
-**Status Codes:**
+**Status codes:**
 - `200` - Success
-- `400` - Invalid witness data
+- `400` - Invalid witness
 - `500` - Proof generation failed
 - `504` - Timeout (>90s)
 
@@ -284,7 +283,7 @@ curl -X POST http://localhost:8080/api/prove \
 
 ### GET /api/health
 
-Container health check.
+Health check endpoint.
 
 **Response:**
 ```json
@@ -295,108 +294,103 @@ Container health check.
 }
 ```
 
-**Status Codes:**
-- `200` - Container healthy
-- `500` - Container unhealthy
+**Status codes:**
+- `200` - Healthy
+- `500` - Unhealthy
 
 ## Troubleshooting
 
-### Container won't build
+### Build Issues
 
+**Container won't build:**
 ```bash
-# Clean Docker cache
+# Clean cache
 docker system prune -a
 
 # Build without cache
-docker build --no-cache -t noir-worker:dev -f Dockerfile.dev .
+docker build --no-cache -t noir-worker -f Dockerfile.dev .
 
 # Check Docker version
-docker --version  # Should be 20+
+docker --version  # Requires 20+
 ```
 
-### Container won't start
-
+**Container won't start:**
 ```bash
 # Check logs
 docker logs <container-id>
 
 # Run interactively
-docker run -it --entrypoint /bin/sh noir-worker:dev
+docker run -it --entrypoint /bin/sh noir-worker
 
-# Check bb installation
-docker run noir-worker:dev bb --version
+# Verify bb installation
+docker run noir-worker bb --version
 ```
 
-### Proof generation fails
+### Proof Generation Issues
 
-**"bb prove failed"**: Circuit or witness is invalid
+**"bb prove failed":**
+
+Circuit or witness invalid. Test locally:
 ```bash
-# Test locally first
-cd ../circuit
+cd ../circuit-noir
 nargo execute
 bb prove -b target/circuit.json -w target/circuit.gz -o target/
 ```
 
-**"bb prove timed out"**: Proof took >90s
-- Circuit is too large (>50k gates)
-- Container is resource-constrained
-- Increase timeout in `main.rs:26`
+**"bb prove timed out":**
 
-**"Failed to write body"**: Witness data is corrupt
+Proof took >90s. Possible causes:
+- Circuit too large (>50K gates)
+- Resource constraints
+- Increase timeout in `main.rs`
+
+**"Failed to write body":**
+
+Witness data corrupt:
 ```bash
-# Verify witness file
-file circuit.gz  # Should be gzip compressed
+file circuit.gz  # Should be gzip
 gunzip -t circuit.gz  # Test integrity
 ```
 
-### Deployment fails
+### Deployment Issues
 
-**"Container binding failed"**: Registry not accessible
-- Verify image is public or Cloudflare has access
+**"Container binding failed":**
+- Verify registry is public or Cloudflare has access
 - Check image tag matches `wrangler.toml`
-- Confirm paid plan is active
+- Confirm paid plan active
 
-**"Worker exceeds size limit"**: index.ts too large
-- Check bundle size: `wrangler publish --dry-run`
-- Worker should be <1MB (container is separate)
-
-## Performance
-
-**Cold start:**
-- Container wake: ~2-5s
-- First request: ~2-7s total
-
-**Warm requests:**
-- Proof generation: ~2-5s
-- Network overhead: ~100-500ms
-- Total: ~2-6s
-
-**Optimization tips:**
-- Keep container warm with periodic health checks
-- Use connection pooling in frontend
-- Cache proofs by witness hash
+**"Worker exceeds size limit":**
+- Worker bundle should be <1MB
+- Check: `wrangler publish --dry-run`
+- Container is separate from Worker
 
 ## Security
 
 **Container isolation:**
 - Read-only filesystem (except /tmp)
 - No network access from bb CLI
-- Automatic cleanup of temp files
+- Automatic temp file cleanup
 
 **API security:**
 - CORS enabled (restrict in production)
-- Request size limits (streaming upload)
+- Streaming upload with size limits
 - Timeout protection (90s bb, 120s HTTP)
 
 **Best practices:**
-- Validate witness data before sending
+- Validate witness before sending
 - Use HTTPS in production
 - Rate limit at Cloudflare level
-- Monitor container logs for anomalies
+- Monitor logs for anomalies
+
+## Optimization Tips
+
+- Keep container warm with periodic health checks
+- Use connection pooling in frontend
+- Cache proofs by witness hash
 
 ## Resources
 
 - [Cloudflare Containers](https://developers.cloudflare.com/workers/runtime-apis/containers/)
 - [Barretenberg](https://github.com/AztecProtocol/aztec-packages/tree/master/barretenberg)
 - [Axum Documentation](https://docs.rs/axum/)
-- [Docker Best Practices](https://docs.docker.com/develop/dev-best-practices/)
+- [Parent README](../README.md)

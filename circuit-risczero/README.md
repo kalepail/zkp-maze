@@ -128,28 +128,34 @@ The grid data is still available in the MazeProof file for visualization and pat
 
 ```
 circuit-risczero/
-├── core/                  # Shared types (no_std)
+├── core/                  # Shared logic (no_std, with optional std)
 │   └── src/
-│       └── lib.rs        # MazeJournal, PathJournal, constants
+│       ├── lib.rs         # Constants, types, re-exports
+│       ├── rng.rs         # Park-Miller LCG (shared)
+│       └── maze_gen.rs    # Recursive backtracker (shared)
 ├── host/                  # Prover (runs outside zkVM)
 │   ├── src/
-│   │   ├── lib.rs        # generate_maze_proof(), verify_path_proof()
-│   │   └── main.rs       # CLI with three modes
+│   │   ├── lib.rs         # generate_maze_proof(), verify_path_proof()
+│   │   └── main.rs        # CLI with two commands
 │   ├── tests/
 │   │   └── integration_test.rs  # Integration tests
 │   ├── example_moves.json       # Valid 312-move BFS solution
 │   └── short_moves.json         # Invalid short solution
 └── methods/
-    ├── maze-gen/         # Stage 1: Maze generation guest
+    ├── maze-gen/          # Stage 1: Maze generation guest
     │   └── src/
-    │       ├── main.rs         # Maze generation proof
-    │       ├── rng.rs          # Park-Miller LCG
-    │       └── maze_gen.rs     # Recursive backtracker
-    ├── path-verify/      # Stage 2: Path verification guest
+    │       └── main.rs    # Maze generation proof (uses core)
+    ├── path-verify/       # Stage 2: Path verification guest
     │   └── src/
-    │       └── main.rs         # Path verification with composition
-    └── Cargo.toml        # Defines both guest programs
+    │       └── main.rs    # Path verification with composition
+    └── Cargo.toml         # Defines both guest programs
 ```
+
+**Key Design:**
+- **`core/`** - Single source of truth for maze generation and RNG logic
+- **`host/`** - Uses `core` with `std` feature for Vec support
+- **`methods/`** - Guest programs use `core` with no_std compatibility
+- **No code duplication** - Maze generation logic shared across all components
 
 ## Quick Start
 
@@ -181,18 +187,24 @@ cargo test --release
 **Generate maze proof:**
 ```bash
 ./target/release/host generate-maze <seed> [output_file]
+
+# Example (saves to 2918957128_maze_proof.json by default)
+./target/release/host generate-maze 2918957128
 ```
 
 **Verify player path:**
 ```bash
 ./target/release/host verify-path <maze_proof_file> <moves_file>
+
+# Example
+./target/release/host verify-path 2918957128_maze_proof.json example_moves.json
 ```
 
 **Arguments:**
 - `seed`: Unsigned 32-bit integer identifying the maze
-- `output_file`: Optional JSON file to save the maze proof
+- `output_file`: Optional JSON file to save the maze proof (defaults to `<seed>_maze_proof.json`)
 - `maze_proof_file`: JSON file containing the maze proof
-- `moves_file`: JSON file with moves array
+- `moves_file`: JSON file with moves array (see `host/example_moves.json` for format)
 
 **Moves format:** JSON array of direction values
 - `0` = NORTH (up)

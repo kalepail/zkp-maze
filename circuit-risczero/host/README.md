@@ -1,66 +1,135 @@
-# Risc Zero Host Program
+# RISC Zero Maze Proof - Host Program
 
-This host program generates zero-knowledge proofs for maze solutions using Risc Zero zkVM.
+Host program for generating and verifying zero-knowledge maze proofs using RISC Zero zkVM.
 
-## Key Features
+## Overview
 
-**Dynamic Maze Generation**: Unlike the Noir implementation which requires compile-time maze data, this implementation generates mazes dynamically from a seed inside the zkVM. This means:
-- Works with any maze seed without recompilation
-- Proves correct maze generation AND solution in a single proof
-- Demonstrates Risc Zero's advantage: arbitrary computation in ZK
+This host program provides two main functions:
 
-This is possible because Risc Zero executes a full RISC-V VM, allowing complex algorithms like maze generation to run inside the proof, whereas Noir's constraint-based system makes this computationally impractical.
+1. **Maze Generation** - Generate a cryptographic proof that a maze was correctly generated from a seed
+2. **Path Verification** - Verify that a player's moves successfully navigate through a proven maze
 
-## Structure
+The host orchestrates the zkVM, passing inputs to guest programs and verifying their outputs.
 
-- **`src/lib.rs`**: Reusable `prove_maze()` library function
-- **`src/main.rs`**: CLI entry point for proving maze solutions
-- **`tests/integration_test.rs`**: Integration tests with known valid/invalid solutions
-- **`example_moves.json`**: Example moves file for CLI testing
+## Two-Stage Architecture
+
+### Stage 1: Generate Maze Proof (Once per maze)
+
+```bash
+./target/release/host generate-maze <seed> [output_file]
+
+# Example - generates 2918957128_maze_proof.json
+./target/release/host generate-maze 2918957128
+```
+
+**What it does:**
+1. Runs `maze-gen` guest program in zkVM with the seed
+2. Guest generates maze deterministically using Park-Miller LCG
+3. Guest computes SHA-256 hash of the grid
+4. Guest commits seed + hash to journal (36 bytes)
+5. Host extracts proof and regenerates grid (deterministic)
+6. Saves MazeProof JSON file with: seed, hash, grid data, and receipt
+
+**Output:** `MazeProof` file that can be shared with players
+
+### Stage 2: Verify Player Path (Once per player)
+
+```bash
+./target/release/host verify-path <maze_proof_file> <moves_file>
+
+# Example
+./target/release/host verify-path 2918957128_maze_proof.json example_moves.json
+```
+
+**What it does:**
+1. Loads MazeProof file (contains receipt, hash, and grid)
+2. Runs `path-verify` guest program in zkVM with:
+   - Maze receipt (as assumption for proof composition)
+   - Grid data (verified via hash)
+   - Player moves
+3. Guest verifies maze receipt using `env::verify()`
+4. Guest hashes provided grid and verifies it matches committed hash
+5. Guest validates path from start (1,1) to end (39,39)
+6. Guest commits result to journal
+7. Host returns verification result
+
+**Output:** `PathProof` proving both maze generation AND valid path
 
 ## Usage
 
-### CLI
+### CLI Commands
 
 ```bash
-# Run with custom moves
-cargo run --release -- <maze_seed> <moves_file>
+# Generate maze proof
+./target/release/host generate-maze <seed> [output_file]
 
-# Example
-cargo run --release -- 2918957128 example_moves.json
+# Verify path
+./target/release/host verify-path <maze_proof_file> <moves_file>
+
+# Show help
+./target/release/host --help
 ```
-
-**Arguments:**
-- `maze_seed`: The seed identifying the maze (e.g., 2918957128)
-- `moves_file`: Path to JSON file containing moves array
-
-**Moves format:** JSON array of u8 direction values
-- `0` = NORTH
-- `1` = EAST
-- `2` = SOUTH
-- `3` = WEST
 
 ### As a Library
 
 ```rust
-use host::prove_maze;
+use host::{generate_maze_proof, verify_path_proof};
 
-fn main() {
-    let moves = vec![1, 1, 2, 2, 3, 3]; // EAST, EAST, SOUTH, SOUTH, WEST, WEST
-    let result = prove_maze(2918957128, moves).unwrap();
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Generate maze proof once
+    let seed = 2918957128;
+    let maze_proof = generate_maze_proof(seed)?;
 
-    if result.is_valid {
-        println!("✅ Maze solution is valid!");
+    println!("Maze generated with hash: {:02x?}", &maze_proof.grid_hash[..4]);
+
+    // Verify player's path
+    let moves = vec![1, 1, 2, 2, 1, 1, 2, 2]; // EAST, EAST, SOUTH, SOUTH, ...
+    let path_proof = verify_path_proof(&maze_proof, moves)?;
+
+    if path_proof.is_valid {
+        println!("✅ Valid solution!");
     } else {
-        println!("❌ Maze solution is invalid!");
+        println!("❌ Invalid solution");
     }
+
+    Ok(())
 }
 ```
 
-### Running Tests
+## File Formats
 
+### Moves File (`moves.json`)
+
+JSON array of direction codes:
+- `0` = NORTH (up)
+- `1` = EAST (right)
+- `2` = SOUTH (down)
+- `3` = WEST (left)
+
+Example:
+```json
+[1, 1, 2, 2, 1, 1, 2, 2]
+```
+
+See `example_moves.json` for a complete 312-move BFS solution.
+
+### MazeProof File (`<seed>_maze_proof.json`)
+
+Generated by `generate-maze`, contains:
+```json
+{
+  "maze_seed": 2918957128,
+  "grid_hash": [217, 150, 197, ...],  // SHA-256 hash (32 bytes)
+  "grid_data": [[0,0,0,...], ...],     // 41x41 binary grid
+  "receipt": { ... }                    // zkVM proof receipt
+}
+```
+
+## Testing
+
+Run integration tests:
 ```bash
-# Run all tests
+cd /Users/kalepail/Desktop/noir-maze-challenge/circuit-risczero
 cargo test --release
 
 # Run specific test
@@ -70,47 +139,115 @@ cargo test --release test_valid_bfs_solution
 cargo test --release -- --nocapture
 ```
 
-## Examples
+### Test Coverage
 
-### Valid Solution (example_moves.json)
-The provided `example_moves.json` contains a complete 312-move BFS solution that successfully navigates from start to end.
+Five integration tests verify correctness:
 
-```bash
-cargo run --release -- 2918957128 example_moves.json
-# Output: 🎊 Congratulations! Your maze solution is cryptographically verified!
-```
-
-### Invalid Solution (short_moves.json)
-A short sequence that doesn't reach the end:
-
-```json
-[1, 1, 2, 2, 3, 3]
-```
-
-```bash
-cargo run --release -- 2918957128 short_moves.json
-# Output: ❌ The maze solution is invalid!
-```
+1. ✅ **Valid BFS solution** - 312-move optimal path succeeds
+2. ❌ **Empty moves** - No moves should fail
+3. ❌ **Wrong seed** - Different maze with same moves fails
+4. ❌ **Partial solution** - Incomplete path fails
+5. ❌ **Invalid moves** - Wall collisions fail
 
 ## Performance
 
-With dynamic maze generation:
-- **Valid 312-move solution**: ~45 seconds (includes maze generation in zkVM)
-- **Invalid short solutions**: ~22 seconds
-- **All 5 integration tests**: ~163 seconds (parallel execution)
+**Maze Generation:**
+- ~45 seconds for 20×20 maze (includes zkVM proving)
+- Journal size: 36 bytes (seed + hash)
+- Grid regeneration: <1ms (deterministic, no proving)
 
-Performance notes:
-- Dynamic maze generation adds overhead compared to hardcoded mazes
-- This is the trade-off for supporting any seed without recompilation
-- The zkVM generates a 20×20 cell maze (41×41 grid) using Park-Miller LCG and recursive backtracker algorithm
-- Generation happens inside the proof, maintaining zero-knowledge properties
+**Path Verification:**
+- ~45 seconds for 312-move path
+- ~22 seconds for short invalid paths
+- Includes maze receipt verification + hash verification + path validation
 
-## Integration Tests
+**Multi-player scenario (100 players, same maze):**
+- Single-stage: 200 proofs (100 maze + 100 path)
+- Two-stage: 101 proofs (1 maze + 100 path)
+- **Result: ~50% reduction in proving work**
 
-Five integration tests verify:
+## Code Organization
 
-1. **`test_valid_bfs_solution`**: 312-move BFS solution is valid ✅
-2. **`test_invalid_solution_empty_moves`**: Empty moves array is invalid ❌
-3. **`test_invalid_solution_wrong_seed`**: Wrong maze seed is invalid ❌
-4. **`test_partial_solution`**: Incomplete path is invalid ❌
-5. **`test_invalid_moves`**: Invalid move sequence is invalid ❌
+```
+host/
+├── src/
+│   ├── lib.rs              # Library API (generate_maze_proof, verify_path_proof)
+│   └── main.rs             # CLI entry point
+├── tests/
+│   └── integration_test.rs # Integration tests
+├── example_moves.json      # Valid 312-move BFS solution
+└── short_moves.json        # Invalid short path
+```
+
+**Key files:**
+- `lib.rs:76-136` - `generate_maze_proof()` - Stage 1 implementation
+- `lib.rs:139-144` - `regenerate_maze_grid()` - Deterministic grid regeneration using shared core
+- `lib.rs:177-274` - `verify_path_proof()` - Stage 2 implementation with proof composition
+
+## How It Works
+
+### Shared Core Logic
+
+The host uses the `maze-core` crate (with `std` feature) to regenerate mazes:
+
+```rust
+use maze_core::{Maze, MAZE_ROWS, MAZE_COLS};
+
+fn regenerate_maze_grid(seed: u32) -> Vec<Vec<u8>> {
+    let maze = Maze::generate(MAZE_ROWS, MAZE_COLS, seed);
+    maze.to_binary_grid_vec() // Vec version for JSON serialization
+}
+```
+
+This ensures **identical maze generation** between:
+- Guest program (in zkVM, using `core` with no_std)
+- Host program (native, using `core` with std)
+
+### Proof Composition
+
+The path verification uses RISC Zero's assumption system:
+
+1. Host adds maze receipt as assumption: `builder.add_assumption(maze_proof.receipt)`
+2. Guest verifies maze: `env::verify(maze_image_id, maze_journal)`
+3. This creates a "conditional proof" that depends on the maze proof
+4. The final receipt proves both maze generation AND path validity
+
+### Hash-Based Verification
+
+Grid data is verified via SHA-256 hash:
+
+1. Maze generation commits hash to journal (36 bytes vs 1,685 bytes)
+2. Path verification receives grid as input
+3. Guest hashes the grid and compares to committed hash
+4. Only ~1,842 cycles overhead (~0.04% of execution)
+
+This follows RISC Zero best practices for minimizing journal size.
+
+## Development
+
+### Adding New Features
+
+To add a new verification step to path checking:
+
+1. Modify `methods/path-verify/src/main.rs` guest program
+2. Update journal format in `core/src/lib.rs` if needed
+3. Rebuild: `cargo build --release`
+4. Add tests to `tests/integration_test.rs`
+
+### Modifying Maze Size
+
+Update constants in `core/src/lib.rs`:
+
+```rust
+pub const MAZE_ROWS: usize = 30;  // Change from 20
+pub const MAZE_COLS: usize = 30;  // Change from 20
+```
+
+Rebuild and regenerate guest programs.
+
+## Resources
+
+- [RISC Zero Documentation](https://dev.risczero.com)
+- [zkVM Guest Guide](https://dev.risczero.com/zkvm/developer-guide/guest-code-101)
+- [Proof Composition](https://dev.risczero.com/zkvm/composition)
+- [Parent README](../README.md) - Full technical details
