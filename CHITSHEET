@@ -1,0 +1,11 @@
+RISC0_DEV_MODE=1 cargo test --release
+RISC0_DEV_MODE=1 RUST_LOG=info RISC0_INFO=1 cargo run --release
+
+./target/release/host generate-maze 2918957128
+./target/release/host verify-path ./2918957128_maze_proof.json ./2918957128_moves.json
+
+===
+
+RunPod Start Command
+runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
+bash -c 'apt-get update && apt-get install -y protobuf-compiler libclang-dev && curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source $HOME/.cargo/env && curl -L https://risczero.com/install | bash && export PATH="/root/.risc0/bin:$PATH" && rzup install && rzup install risc0-groth16 && export PATH=/usr/local/cuda/bin:$PATH && export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH && echo "export PATH=/root/.risc0/bin:\$PATH" >> ~/.bashrc && echo "export PATH=/usr/local/cuda/bin:\$PATH" >> ~/.bashrc && echo "export LD_LIBRARY_PATH=/usr/local/cuda/lib64:\$LD_LIBRARY_PATH" >> ~/.bashrc && cd /workspace && ([ -d "risc0" ] || git clone https://github.com/risc0/risc0.git) && cd risc0 && echo "" && echo "========================================" && echo "RISC Zero Setup Complete!" && echo "========================================" && nvidia-smi && if [ -f /start.sh ]; then /start.sh; else sleep infinity; fi'

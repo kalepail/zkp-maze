@@ -54,17 +54,22 @@ export default function MazeGame() {
     setProof
   );
 
-  // Warmup container when switching to server mode
+  // Warmup container when switching to server mode (only if warmup expired)
   useEffect(() => {
     if (!useLocalProof && !warmupInitiatedRef.current) {
-      warmupInitiatedRef.current = true;
-      proofHook.warmupContainer();
+      // Only warmup if the last warmup was more than 1 minute ago
+      if (!proofHook.isWarmupValid()) {
+        warmupInitiatedRef.current = true;
+        proofHook.warmupContainer().finally(() => {
+          warmupInitiatedRef.current = false;
+        });
+      }
     }
     // Reset the ref when switching back to local mode
     if (useLocalProof) {
       warmupInitiatedRef.current = false;
     }
-  }, [useLocalProof, proofHook.warmupContainer]);
+  }, [useLocalProof, proofHook]);
 
   // Handle warmup when toggling to remote mode
   const handleUseLocalProofChange = useCallback((useLocal: boolean) => {

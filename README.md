@@ -42,7 +42,7 @@ React app with:
 
 See [deployment](#deployment) for running locally and deploying.
 
-### Circuit (`circuit/`)
+### Circuit (`circuit-noir/`)
 
 Noir zero-knowledge circuit that verifies maze solutions.
 
@@ -51,7 +51,7 @@ Noir zero-knowledge circuit that verifies maze solutions.
 - Checks bounds, walls, and sequential movement
 - Outputs validity proof without revealing moves
 
-See [circuit/README.md](./circuit/README.md) for details.
+See [circuit-noir/README.md](./circuit-noir/README.md) for details.
 
 ### Worker (`worker/`)
 
@@ -144,7 +144,7 @@ python3 generate_maze.py <your-seed> --no-preview
 pnpm run nargo     # Build circuit
 ```
 
-Both update `circuit/src/maze_config.nr` and `circuit/Prover.toml`, then you rebuild with `pnpm run nargo`.
+Both update `circuit-noir/src/maze_config.nr` and `circuit-noir/Prover.toml`, then you rebuild with `pnpm run nargo`.
 
 ## Deployment
 
@@ -234,7 +234,7 @@ docker run -p 8080:8080 noir-worker
 ```bash
 pnpm run compile  # After circuit code changes
 pnpm run execute  # After Prover.toml changes
-cd circuit && nargo test  # Run tests only
+cd circuit-noir && nargo test  # Run tests only
 ```
 
 ## Scripts Reference
@@ -269,7 +269,7 @@ pnpm run typecheck    # Type check code
 
 ```
 noir-maze-challenge/
-├── circuit/              # Noir ZK circuit
+├── circuit-noir/         # Noir ZK circuit
 │   ├── src/
 │   │   ├── main.nr          # Circuit logic
 │   │   ├── maze_config.nr   # Generated maze
@@ -308,7 +308,7 @@ pnpm install
 nargo --version  # Should be 1.0.0-beta.9+
 
 # Clean and rebuild
-cd circuit && rm -rf target && nargo compile
+cd circuit-noir && rm -rf target && nargo compile
 ```
 
 **Worker container won't build**:

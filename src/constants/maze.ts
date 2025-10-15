@@ -1,4 +1,4 @@
-// Maze constants - must match circuit/src/maze_config.nr
+// Maze constants - must match circuit-noir/src/maze_config.nr
 // These values are hardcoded in the Noir circuit and cannot be changed without recompiling
 
 // Grid dimensions (binary grid including walls)

@@ -1,0 +1,21 @@
+[package]
+name = "host"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "host"
+path = "src/lib.rs"
+
+[[bin]]
+name = "host"
+path = "src/main.rs"
+
+[dependencies]
+maze-core = { path = "../core", features = ["std"] }
+methods = { path = "../methods" }
+risc0-zkvm = { version = "3.0.3", features = ['prove'] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = "1.0"
+serde_json = "1.0"

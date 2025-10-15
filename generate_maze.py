@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 from typing import Any, List, Tuple, Dict
 
-# Configuration constants - must match src/constants/maze.ts and circuit/src/maze_config.nr
+# Configuration constants - must match src/constants/maze.ts and circuit-noir/src/maze_config.nr
 MAX_MOVES = 500  # Maximum number of moves allowed in solution
 CELL_ROWS = 20  # Maze dimensions in cells (not including walls)
 CELL_COLS = 20  # Must equal CELL_ROWS (square maze requirement)
@@ -327,6 +327,17 @@ fn test_generated_solution() {{
         except IOError as e:
             raise IOError(f"Failed to write test solution to {output_path}: {e}")
 
+    def export_risczero_moves(self, output_path: Path, moves: List[int]):
+        """Export moves to circuit-risczero directory as JSON file."""
+        moves_json = json.dumps(moves, indent=2)
+
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(moves_json + "\n")
+            print(f"✅ RISC Zero moves written to {output_path}")
+        except IOError as e:
+            raise IOError(f"Failed to write RISC Zero moves to {output_path}: {e}")
+
     def export_for_noir(self):
         """Export maze configuration for Noir circuit with test case and prover inputs."""
         output_dir = Path(".")
@@ -342,14 +353,16 @@ fn test_generated_solution() {{
         moves = self.path_to_moves(path)
 
         # Export to three separate files
-        maze_config_path = output_dir / "circuit" / "src" / "maze_config.nr"
-        prover_path = output_dir / "circuit" / "Prover.toml"
-        test_path = output_dir / "circuit" / "src" / "test_solutions.nr"
+        maze_config_path = output_dir / "circuit-noir" / "src" / "maze_config.nr"
+        prover_path = output_dir / "circuit-noir" / "Prover.toml"
+        test_path = output_dir / "circuit-noir" / "src" / "test_solutions.nr"
+        risczero_moves_path = output_dir / "circuit-risczero" / f"{self.seed}_moves.json"
 
         self.export_maze_config(maze_config_path, grid, start_grid, end_grid,
                                len(path), len(moves), moves)
         self.export_prover_inputs(prover_path, moves)
         self.export_test_solution(test_path, moves)
+        self.export_risczero_moves(risczero_moves_path, moves)
 
     def export_for_frontend(self):
         """Export minimal config for frontend (seed only - frontend generates maze)."""
