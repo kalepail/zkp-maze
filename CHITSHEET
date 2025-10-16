@@ -27,4 +27,14 @@ source "/root/.bashrc"
 
 rzup install
 
+cd workspace
+
+git clone https://github.com/kalepail/noir-maze-challenge
+
+cd noir-maze-challenge
+
+git checkout risczero-frontend
+
 RUSTFLAGS="-C target-cpu=native" cargo build -F cuda -r --package api-server
+
+# Control + b then d

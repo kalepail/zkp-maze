@@ -1,6 +1,6 @@
 use actix_web::{middleware, web, App, HttpResponse, HttpServer, Responder};
 use actix_cors::Cors;
-use host::{generate_maze_proof, verify_path_proof, MazeProof, PathProof};
+use host::{generate_maze_proof, verify_path_proof, verify_path_proof_receipt, MazeProof, PathProof};
 use serde::{Deserialize, Serialize};
 
 // Request/Response types
@@ -113,33 +113,38 @@ async fn verify_path(
 }
 
 /// POST /api/verify-proof
-/// Verify a path proof (checks the cryptographic proof and extracts results)
+/// Verify a path proof cryptographically (checks receipt signature and image ID)
 async fn verify_proof(
     req: web::Json<VerifyProofRequest>,
 ) -> impl Responder {
     tracing::info!("Received verify-proof request for maze seed: {}", req.path_proof.maze_seed);
 
-    // The path proof already contains the verification result
-    // We just need to validate the receipt integrity
-    let is_valid = req.path_proof.is_valid;
-    let maze_seed = req.path_proof.maze_seed;
+    // Cryptographically verify the receipt
+    match verify_path_proof_receipt(&req.path_proof) {
+        Ok(()) => {
+            tracing::info!(
+                "Receipt verified successfully: valid={}, seed={}",
+                req.path_proof.is_valid,
+                req.path_proof.maze_seed
+            );
 
-    // Note: In a production system, you might want to re-verify the receipt
-    // against the PATH_VERIFY_ID to ensure it hasn't been tampered with.
-    // For now, we'll trust the path_proof structure.
-
-    tracing::info!(
-        "Path proof verification result: valid={}, seed={}",
-        is_valid,
-        maze_seed
-    );
-
-    HttpResponse::Ok().json(VerifyProofResponse {
-        success: true,
-        is_valid,
-        maze_seed,
-        error: None,
-    })
+            HttpResponse::Ok().json(VerifyProofResponse {
+                success: true,
+                is_valid: req.path_proof.is_valid,
+                maze_seed: req.path_proof.maze_seed,
+                error: None,
+            })
+        }
+        Err(e) => {
+            tracing::error!("Receipt verification failed: {}", e);
+            HttpResponse::InternalServerError().json(VerifyProofResponse {
+                success: false,
+                is_valid: false,
+                maze_seed: req.path_proof.maze_seed,
+                error: Some(e.to_string()),
+            })
+        }
+    }
 }
 
 /// GET /health

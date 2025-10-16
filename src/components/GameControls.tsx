@@ -5,8 +5,10 @@ interface GameControlsProps {
   proving: boolean;
   autoSolving: boolean;
   provider: ProofProvider;
+  generatingMaze: boolean;
   onProviderChange: (provider: ProofProvider) => void;
   onGenerateProof: () => void;
+  onGenerateNewMaze: () => void;
   onAutoSolve: () => void;
   onReset: () => void;
 }
@@ -16,8 +18,10 @@ export default function GameControls({
   proving,
   autoSolving,
   provider,
+  generatingMaze,
   onProviderChange,
   onGenerateProof,
+  onGenerateNewMaze,
   onAutoSolve,
   onReset,
 }: GameControlsProps) {
@@ -36,6 +40,18 @@ export default function GameControls({
         >
           {isRisc0 ? '🧩 Switch to Noir' : '⚡ Switch to RISC Zero'}
         </button>
+
+        {/* RISC Zero only: Generate New Maze button */}
+        {isRisc0 && (
+          <button
+            onClick={onGenerateNewMaze}
+            disabled={proving || generatingMaze}
+            className="px-4 py-2 bg-purple-700 text-white font-mono text-sm border-2 border-black hover:bg-purple-600 active:translate-x-[2px] active:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            aria-label="Generate a new random maze"
+          >
+            {generatingMaze ? '🎲 Generating...' : '🎲 New Maze'}
+          </button>
+        )}
       </div>
 
       {/* Noir-specific: Local/Remote toggle */}

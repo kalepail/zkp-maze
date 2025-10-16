@@ -8,6 +8,7 @@ import { useMazeProof } from '../hooks/useMazeProof';
 import { useRisc0Proof } from '../hooks/useRisc0Proof';
 import { useSwipeControls } from '../hooks/useSwipeControls';
 import type { ProofProvider } from '../constants/provider';
+import { risc0Api } from '../utils/risc0Api';
 import MazeCanvas from './MazeCanvas';
 import GameControls from './GameControls';
 import StatsPanel from './StatsPanel';
@@ -21,6 +22,8 @@ export default function MazeGame() {
   const [provider, setProvider] = useState<ProofProvider>('noir-local');
   const [logs, setLogs] = useState<string[]>([]);
   const [proof, setProof] = useState('');
+  const [currentSeed, setCurrentSeed] = useState(mazeConfig.seed);
+  const [generatingMaze, setGeneratingMaze] = useState(false);
   const warmupInitiatedRef = useRef(false);
 
   // Shared log management
@@ -57,7 +60,7 @@ export default function MazeGame() {
   );
 
   const risc0ProofHook = useRisc0Proof(
-    mazeConfig.seed,
+    currentSeed,
     addLog,
     setProof
   );
@@ -92,14 +95,11 @@ export default function MazeGame() {
     if (provider === 'risc0' && lastProviderRef.current !== 'risc0') {
       lastProviderRef.current = 'risc0';
 
-      // Check health first, then generate maze proof only if healthy
-      risc0ProofHook.checkHealth().then(isHealthy => {
-        if (isHealthy) {
-          // Only generate maze proof if server is healthy
-          risc0ProofHook.generateMazeProof().catch(err => {
-            console.error('Failed to generate maze proof:', err);
-          });
-        }
+      // Check health and generate maze proof
+      // generateMazeProof() will perform its own health check
+      risc0ProofHook.checkHealth(); // Update UI status indicator
+      risc0ProofHook.generateMazeProof(false).catch(err => {
+        console.error('Failed to generate maze proof:', err);
       });
     } else if (provider !== 'risc0' && lastProviderRef.current === 'risc0') {
       lastProviderRef.current = null;
@@ -112,7 +112,65 @@ export default function MazeGame() {
   const handleProviderChange = useCallback((newProvider: ProofProvider) => {
     setProvider(newProvider);
     clearProof();
-  }, [clearProof]);
+
+    // Reset to original seed when switching away from RISC Zero
+    if (newProvider !== 'risc0') {
+      if (currentSeed !== mazeConfig.seed) {
+        setCurrentSeed(mazeConfig.seed);
+        // Regenerate original maze
+        const generator = new MazeGenerator(
+          mazeConfig.rows,
+          mazeConfig.cols,
+          mazeConfig.seed
+        );
+        generator.generate();
+        const grid = generator.toBinaryGrid();
+        setInitialMaze(grid);
+        // Mark that we need to reset game state after maze updates to clear old solution path
+        pendingMazeResetRef.current = true;
+        addLog(`🎮 Switched to Noir mode. Maze reset to seed ${mazeConfig.seed}.`);
+      }
+    }
+  }, [clearProof, currentSeed, addLog]);
+
+  // Generate a new random maze (RISC Zero only)
+  const generateNewMaze = useCallback(async () => {
+    if (provider !== 'risc0' || generatingMaze) return;
+
+    try {
+      setGeneratingMaze(true);
+      const newSeed = Math.floor(Math.random() * 4294967295); // Max u32 value
+      addLog(`🎲 Generating new maze with seed ${newSeed}...`);
+
+      // Call RISC Zero API directly to generate maze proof with new seed
+      const start = performance.now();
+      const mazeProof = await risc0Api.generateMaze(newSeed);
+      const duration = ((performance.now() - start) / 1000).toFixed(1);
+
+      // Update the seed
+      setCurrentSeed(newSeed);
+
+      // Update the maze grid from the proof
+      setInitialMaze(mazeProof.grid_data);
+
+      // Cache the maze proof in the hook to prevent duplicate generation
+      risc0ProofHook.setMazeProofCache(mazeProof);
+
+      // Clear proof
+      clearProof();
+
+      // Mark that we need to reset game state after maze updates
+      pendingMazeResetRef.current = true;
+
+      addLog(`✅ New maze generated! (${duration}s)`);
+      addLog(`🎮 Maze generated from seed ${newSeed}! Use arrow keys to navigate.`);
+    } catch (error) {
+      addLog('❌ Failed to generate new maze');
+      console.error(error);
+    } finally {
+      setGeneratingMaze(false);
+    }
+  }, [provider, generatingMaze, addLog, clearProof, risc0ProofHook]);
 
   const {
     maze,
@@ -134,6 +192,17 @@ export default function MazeGame() {
     handleMove,
     reset,
   } = gameState;
+
+  // Track when we're generating a new maze to trigger reset after state updates
+  const pendingMazeResetRef = useRef(false);
+
+  // Reset game state after new maze is generated
+  useEffect(() => {
+    if (pendingMazeResetRef.current && maze.length > 0) {
+      reset();
+      pendingMazeResetRef.current = false;
+    }
+  }, [maze, reset]);
 
   // Keyboard controls
   useEffect(() => {
@@ -359,7 +428,7 @@ export default function MazeGame() {
           <div className="p-4 md:p-6">
             {/* Stats Panel */}
             <StatsPanel
-              mazeSeed={mazeConfig.seed}
+              mazeSeed={currentSeed}
               currentDir={currentDir}
               moveCount={moves.length}
               elapsedTime={elapsedTime}
@@ -371,8 +440,10 @@ export default function MazeGame() {
               proving={proving}
               autoSolving={autoSolving}
               provider={provider}
+              generatingMaze={generatingMaze}
               onProviderChange={handleProviderChange}
               onGenerateProof={handleGenerateProof}
+              onGenerateNewMaze={generateNewMaze}
               onAutoSolve={autoSolve}
               onReset={handleReset}
             />
