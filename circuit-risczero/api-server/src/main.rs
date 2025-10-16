@@ -1,4 +1,5 @@
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{middleware, web, App, HttpResponse, HttpServer, Responder};
+use actix_cors::Cors;
 use host::{generate_maze_proof, verify_path_proof, MazeProof, PathProof};
 use serde::{Deserialize, Serialize};
 
@@ -166,7 +167,17 @@ async fn main() -> std::io::Result<()> {
     tracing::info!("Binding to {}", bind_address);
 
     HttpServer::new(|| {
+        // Configure CORS to allow all origins (matching the Noir worker configuration)
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header()
+            .expose_any_header()
+            .max_age(86400);
+
         App::new()
+            .wrap(cors)
+            .wrap(middleware::Logger::default())
             .app_data(web::JsonConfig::default().limit(10_485_760)) // 10MB limit
             .route("/health", web::get().to(health))
             .route("/api/generate-maze", web::post().to(generate_maze))

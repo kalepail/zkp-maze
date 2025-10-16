@@ -10,6 +10,7 @@ host = { path = "../host" }
 # Web server framework
 actix-web = "4.9"
 actix-rt = "2.10"
+actix-cors = "0.7"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
