@@ -39,8 +39,8 @@ RUN apt-get update && \
 # risc0-build v3.0.3 checks for the toolchain on the host before spawning Docker
 RUN curl -L https://risczero.com/install | bash
 ENV PATH="/root/.risc0/bin:${PATH}"
-RUN rzup install rust 1.88.0
-RUN rzup install cpp 2024.01.05
+RUN rzup install rust
+RUN rzup install cpp
 
 # Copy source code
 COPY Cargo.toml Cargo.lock ./
@@ -62,8 +62,8 @@ exec ./target/release/api-server\n\
 EXPOSE 8080
 
 # Set environment variables
-ENV RISC0_DEV_MODE=1
-ENV RUST_LOG=info
+# ENV RISC0_DEV_MODE=1
+# ENV RUST_LOG=info
 
 # Run the entrypoint script
 ENTRYPOINT ["/entrypoint.sh"]
