@@ -139,6 +139,13 @@ circuit-risczero/
 │   │   └── main.rs        # CLI with two commands
 │   └── tests/
 │       └── integration_test.rs  # Integration tests
+├── api-server/            # REST API server
+│   ├── src/
+│   │   └── main.rs        # Actix-web server with proof endpoints
+│   ├── Dockerfile         # Production build (x86_64, full zkVM)
+│   ├── Dockerfile.dev     # Development build (any arch, dev mode)
+│   ├── docker-compose.yml # Docker Compose with dev/prod profiles
+│   └── test-api.sh        # API test script
 └── methods/
     ├── maze-gen/          # Stage 1: Maze generation guest
     │   └── src/
@@ -242,6 +249,48 @@ fn main() {
         }
     }
 }
+```
+
+### REST API Server
+
+The `api-server` directory contains a production-ready REST API that wraps the maze proof functionality. See [`api-server/README.md`](api-server/README.md) for full documentation.
+
+**Quick Start with Docker:**
+
+```bash
+# Development (ARM64/x86_64 - builds toolchain from source, ~15-30 min first build)
+cd circuit-risczero/api-server
+docker-compose --profile dev up
+
+# Production (x86_64 only - faster automated installation)
+docker-compose --profile prod up
+```
+
+**For native development:**
+```bash
+cd circuit-risczero/api-server
+cargo run --release
+```
+
+> Both Docker builds generate real proofs. Dev build works on ARM64 by compiling RISC Zero toolchain from source.
+
+**API Endpoints:**
+
+- `POST /api/generate-maze` - Generate a maze proof from a seed
+- `POST /api/verify-path` - Generate path verification proof
+- `POST /api/verify-proof` - Verify a path proof
+- `GET /health` - Health check
+
+**Example Request:**
+
+```bash
+# Generate maze proof
+curl -X POST http://localhost:8080/api/generate-maze \
+  -H "Content-Type: application/json" \
+  -d '{"seed": 2918957128}'
+
+# Test all endpoints
+./api-server/test-api.sh
 ```
 
 ## How It Works

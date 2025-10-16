@@ -1,0 +1,69 @@
+# syntax=docker/dockerfile:1
+# Development Dockerfile - builds on x86_64 for rzup compatibility
+#
+# This Dockerfile builds the application at runtime with Docker-in-Docker support.
+# The risc0-build system will use the host's Docker daemon to spawn risc0-guest-builder
+# containers for deterministic guest binary compilation.
+#
+# Note: We use --platform=linux/amd64 because rzup doesn't support ARM64.
+#
+# Build:
+#   cd circuit-risczero && docker build --platform=linux/amd64 -f api-server/Dockerfile.dev -t noir-maze-challenge-dev .
+#
+# Run (requires mounting Docker socket):
+#   docker run --rm --platform=linux/amd64 -v /var/run/docker.sock:/var/run/docker.sock -p 8080:8080 noir-maze-challenge-dev
+
+FROM --platform=linux/amd64 rust:1.90.0-slim-bookworm
+
+WORKDIR /workspace
+
+# Install build and runtime dependencies including Docker CLI
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        pkg-config \
+        libssl-dev \
+        build-essential \
+        g++ \
+        curl \
+        ca-certificates \
+        gnupg && \
+    install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+    chmod a+r /etc/apt/keyrings/docker.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list && \
+    apt-get update && \
+    apt-get install -y docker-ce-cli && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install RISC Zero toolchain (rzup) - required even when using RISC0_USE_DOCKER
+# risc0-build v3.0.3 checks for the toolchain on the host before spawning Docker
+RUN curl -L https://risczero.com/install | bash
+ENV PATH="/root/.risc0/bin:${PATH}"
+RUN rzup install rust 1.88.0
+RUN rzup install cpp 2024.01.05
+
+# Copy source code
+COPY Cargo.toml Cargo.lock ./
+COPY methods methods/
+COPY host host/
+COPY api-server api-server/
+COPY core core/
+
+# Create entrypoint script that builds and runs the application
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Building application with RISC0_USE_DOCKER=1..."\n\
+RISC0_USE_DOCKER=1 cargo build --release --package api-server\n\
+echo "Starting api-server..."\n\
+exec ./target/release/api-server\n\
+' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+# Expose port
+EXPOSE 8080
+
+# Set environment variables
+ENV RISC0_DEV_MODE=1
+ENV RUST_LOG=info
+
+# Run the entrypoint script
+ENTRYPOINT ["/entrypoint.sh"]
