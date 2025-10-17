@@ -34,7 +34,7 @@ export default function GameControls({
       <div className="flex gap-2 flex-wrap">
         <button
           onClick={() => onProviderChange(isRisc0 ? 'noir-local' : 'risc0')}
-          disabled={proving}
+          disabled={proving || autoSolving}
           className="px-4 py-2 bg-black text-white font-mono text-sm border-2 border-black hover:bg-white hover:text-black active:translate-x-[2px] active:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
           aria-label="Toggle between Noir and RISC Zero providers"
         >
@@ -45,7 +45,7 @@ export default function GameControls({
         {isRisc0 && (
           <button
             onClick={onGenerateNewMaze}
-            disabled={proving || generatingMaze}
+            disabled={proving || generatingMaze || autoSolving}
             className="px-4 py-2 bg-purple-700 text-white font-mono text-sm border-2 border-black hover:bg-purple-600 active:translate-x-[2px] active:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
             aria-label="Generate a new random maze"
           >

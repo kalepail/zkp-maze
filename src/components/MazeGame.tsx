@@ -8,7 +8,6 @@ import { useMazeProof } from '../hooks/useMazeProof';
 import { useRisc0Proof } from '../hooks/useRisc0Proof';
 import { useSwipeControls } from '../hooks/useSwipeControls';
 import type { ProofProvider } from '../constants/provider';
-import { risc0Api } from '../utils/risc0Api';
 import MazeCanvas from './MazeCanvas';
 import GameControls from './GameControls';
 import StatsPanel from './StatsPanel';
@@ -97,7 +96,7 @@ export default function MazeGame() {
     }
   }, [provider, noirProofHook]);
 
-  // Check RISC Zero server health and generate maze proof when switching to RISC Zero
+  // Check RISC Zero server health when switching to RISC Zero
   const lastProviderRef = useRef<ProofProvider | null>(null);
 
   useEffect(() => {
@@ -105,12 +104,8 @@ export default function MazeGame() {
     if (provider === 'risc0' && lastProviderRef.current !== 'risc0') {
       lastProviderRef.current = 'risc0';
 
-      // Check health and generate maze proof
-      // generateMazeProof() will perform its own health check
+      // Check health only - don't auto-generate maze proof
       risc0ProofHook.checkHealth(); // Update UI status indicator
-      risc0ProofHook.generateMazeProof(false).catch(err => {
-        console.error('Failed to generate maze proof:', err);
-      });
     } else if (provider !== 'risc0' && lastProviderRef.current === 'risc0') {
       lastProviderRef.current = null;
     }
@@ -152,19 +147,22 @@ export default function MazeGame() {
       const newSeed = Math.floor(Math.random() * 4294967295); // Max u32 value
       addLog(`🎲 Generating new maze with seed ${newSeed}...`);
 
-      // Call RISC Zero API directly to generate maze proof with new seed
+      // Generate maze client-side only
       const start = performance.now();
-      const mazeProof = await risc0Api.generateMaze(newSeed);
+      const generator = new MazeGenerator(
+        mazeConfig.rows,
+        mazeConfig.cols,
+        newSeed
+      );
+      generator.generate();
+      const grid = generator.toBinaryGrid();
       const duration = ((performance.now() - start) / 1000).toFixed(1);
 
       // Update the seed
       setCurrentSeed(newSeed);
 
-      // Update the maze grid from the proof
-      setInitialMaze(mazeProof.grid_data);
-
-      // Cache the maze proof in the hook to prevent duplicate generation
-      risc0ProofHook.setMazeProofCache(mazeProof);
+      // Update the maze grid
+      setInitialMaze(grid);
 
       // Clear proof
       clearProof();
@@ -180,7 +178,7 @@ export default function MazeGame() {
     } finally {
       setGeneratingMaze(false);
     }
-  }, [provider, generatingMaze, addLog, clearProof, risc0ProofHook]);
+  }, [provider, generatingMaze, addLog, clearProof]);
 
   const {
     maze,
