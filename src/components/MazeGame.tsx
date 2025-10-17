@@ -16,10 +16,20 @@ import LogsPanel from './LogsPanel';
 import ProofPanel from './ProofPanel';
 import MobileControls from './MobileControls';
 
+// Determine initial provider based on URL path
+function getInitialProvider(): ProofProvider {
+  const path = window.location.pathname;
+  if (path === '/risc0') {
+    return 'risc0';
+  }
+  // Default to noir-local for / or /noir or any other path
+  return 'noir-local';
+}
+
 export default function MazeGame() {
   const [initialMaze, setInitialMaze] = useState<number[][]>([]);
   const [loading, setLoading] = useState(true);
-  const [provider, setProvider] = useState<ProofProvider>('noir-local');
+  const [provider, setProvider] = useState<ProofProvider>(getInitialProvider());
   const [logs, setLogs] = useState<string[]>([]);
   const [proof, setProof] = useState('');
   const [currentSeed, setCurrentSeed] = useState(mazeConfig.seed);

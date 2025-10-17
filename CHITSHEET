@@ -38,3 +38,5 @@ git checkout risczero-frontend
 RUSTFLAGS="-C target-cpu=native" cargo build -F cuda -r --package api-server
 
 # Control + b then d
+
+# TODO Cloudflare tunnel for Vast.ai
