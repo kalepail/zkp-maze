@@ -145,10 +145,8 @@ export default function MazeGame() {
     try {
       setGeneratingMaze(true);
       const newSeed = Math.floor(Math.random() * 4294967295); // Max u32 value
-      addLog(`🎲 Generating new maze with seed ${newSeed}...`);
 
       // Generate maze client-side only
-      const start = performance.now();
       const generator = new MazeGenerator(
         mazeConfig.rows,
         mazeConfig.cols,
@@ -156,7 +154,6 @@ export default function MazeGame() {
       );
       generator.generate();
       const grid = generator.toBinaryGrid();
-      const duration = ((performance.now() - start) / 1000).toFixed(1);
 
       // Update the seed
       setCurrentSeed(newSeed);
@@ -170,7 +167,6 @@ export default function MazeGame() {
       // Mark that we need to reset game state after maze updates
       pendingMazeResetRef.current = true;
 
-      addLog(`✅ New maze generated! (${duration}s)`);
       addLog(`🎮 Maze generated from seed ${newSeed}! Use arrow keys to navigate.`);
     } catch (error) {
       addLog('❌ Failed to generate new maze');

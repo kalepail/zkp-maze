@@ -77,9 +77,7 @@ export function useRisc0Proof(
           }
         }
 
-        addLog(`🎲 Generating maze proof for seed ${mazeSeed}...`);
         const start = performance.now();
-
         const mazeProof = await risc0Api.generateMaze(mazeSeed);
         const duration = ((performance.now() - start) / 1000).toFixed(1);
 
@@ -116,6 +114,8 @@ export function useRisc0Proof(
         // Step 1: Ensure we have a maze proof
         let mazeProof = mazeProofRef.current;
         if (!mazeProof || mazeProof.maze_seed !== mazeSeed) {
+          // Log immediately so user knows what's happening
+          addLog(`🎲 Generating maze proof for seed ${mazeSeed}...`);
           // generateMazeProof will check health if needed
           mazeProof = await generateMazeProof(false);
         }
