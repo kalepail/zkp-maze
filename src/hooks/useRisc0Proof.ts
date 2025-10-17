@@ -78,11 +78,12 @@ export function useRisc0Proof(
         }
 
         const start = performance.now();
-        const mazeProof = await risc0Api.generateMaze(mazeSeed);
+        // Generate Succinct maze proof for balanced size and verification
+        const mazeProof = await risc0Api.generateMaze(mazeSeed, 'succinct');
         const duration = ((performance.now() - start) / 1000).toFixed(1);
 
         mazeProofRef.current = mazeProof;
-        addLog(`Maze proof generated ✅ (${duration}s)`);
+        addLog(`Maze proof generated (Succinct) ✅ (${duration}s)`);
 
         return mazeProof;
       } catch (error) {
@@ -120,14 +121,14 @@ export function useRisc0Proof(
           mazeProof = await generateMazeProof(false);
         }
 
-        // Step 2: Verify path and generate proof
-        addLog(`🔐 Generating proof...`);
+        // Step 2: Verify path and generate Groth16 proof for maximum compression
+        addLog(`🔐 Generating path proof (Groth16)...`);
         const verifyStart = performance.now();
 
-        const pathProof: PathProof = await risc0Api.verifyPath(mazeProof, moves);
+        const pathProof: PathProof = await risc0Api.verifyPath(mazeProof, moves, 'groth16');
 
         const verifyDuration = ((performance.now() - verifyStart) / 1000).toFixed(1);
-        addLog(`Generated proof ✅ (${verifyDuration}s)`);
+        addLog(`Path proof generated (Groth16) ✅ (${verifyDuration}s)`);
 
         // Step 3: Cryptographically verify the receipt
         addLog('🔍 Verifying proof...');
@@ -184,23 +185,47 @@ export function useRisc0Proof(
 }
 
 /**
- * Format RISC Zero proof for display
+ * Format RISC Zero proof for display with detailed metrics
  */
 function formatRisc0Proof(pathProof: PathProof): string {
+  // Calculate proof sizes
+  const receiptStr = JSON.stringify(pathProof.receipt);
+  const receiptBytes = receiptStr.length;
+  const receiptKB = (receiptBytes / 1024).toFixed(2);
+
+  // Format size based on actual bytes
+  const sizeDisplay = receiptBytes < 1024
+    ? `${receiptBytes} bytes`
+    : receiptBytes < 1024 * 100
+      ? `${receiptKB} KB`
+      : `${(receiptBytes / (1024 * 1024)).toFixed(2)} MB`;
+
   const lines = [
     '=== RISC Zero Path Verification Proof ===',
     '',
     `Maze Seed: ${pathProof.maze_seed}`,
     `Validation: ${pathProof.is_valid ? 'VALID ✓' : 'INVALID ✗'}`,
+    `Proof Type: ${pathProof.receipt_kind.toUpperCase()}`,
+    `Proof Size: ${sizeDisplay}`,
     '',
-    '--- Receipt (Proof) ---',
-    risc0Api.formatReceipt(pathProof.receipt),
+    '--- Proof Architecture ---',
+    `  Maze Proof: Succinct (STARK, ~200 KB)`,
+    `  Path Proof: ${pathProof.receipt_kind === 'groth16' ? 'Groth16 (SNARK, ultra-compact)' : pathProof.receipt_kind}`,
+    `  Compression: ${pathProof.receipt_kind === 'groth16' ? '~200x smaller than Succinct' : 'N/A'}`,
+    '',
+    '--- Receipt Details ---',
+    risc0Api.formatReceipt(pathProof.receipt, pathProof.receipt_kind),
     '',
     'This proof cryptographically attests that:',
     '  1. The path was verified against maze seed ' + pathProof.maze_seed,
-    '  2. The computation was executed correctly',
-    '  3. The result can be verified by anyone',
-  ];
+    '  2. The maze was correctly generated (verified via assumption)',
+    '  3. The computation was executed correctly',
+    '  4. The result can be verified by anyone with the receipt',
+    '',
+    pathProof.receipt_kind === 'groth16'
+      ? '✨ Groth16 proofs are ideal for blockchain verification!'
+      : '',
+  ].filter(line => line !== ''); // Remove empty lines at the end
 
   return lines.join('\n');
 }

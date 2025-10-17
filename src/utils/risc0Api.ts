@@ -1,5 +1,8 @@
 import { RISC0_API_URL } from '../constants/provider';
 
+// Receipt kind options
+export type ReceiptKind = 'composite' | 'succinct' | 'groth16';
+
 // RISC Zero Receipt type (simplified)
 export interface Receipt {
   journal: {
@@ -15,16 +18,19 @@ export interface MazeProof {
   grid_hash: number[];
   grid_data: number[][];
   receipt: Receipt;
+  receipt_kind: ReceiptKind;
 }
 
 export interface PathProof {
   maze_seed: number;
   is_valid: boolean;
   receipt: Receipt;
+  receipt_kind: ReceiptKind;
 }
 
 export interface GenerateMazeRequest {
   seed: number;
+  receipt_kind?: ReceiptKind;
 }
 
 export interface GenerateMazeResponse {
@@ -36,6 +42,7 @@ export interface GenerateMazeResponse {
 export interface VerifyPathRequest {
   maze_proof: MazeProof;
   moves: number[];
+  receipt_kind?: ReceiptKind;
 }
 
 export interface VerifyPathResponse {
@@ -83,9 +90,11 @@ export class Risc0ApiClient {
 
   /**
    * Generate a maze proof from a seed
+   * @param seed - The seed to generate the maze from
+   * @param receiptKind - The type of receipt to generate (defaults to 'succinct')
    */
-  async generateMaze(seed: number): Promise<MazeProof> {
-    const request: GenerateMazeRequest = { seed };
+  async generateMaze(seed: number, receiptKind: ReceiptKind = 'succinct'): Promise<MazeProof> {
+    const request: GenerateMazeRequest = { seed, receipt_kind: receiptKind };
 
     const response = await fetch(`${this.baseUrl}/api/generate-maze`, {
       method: 'POST',
@@ -111,11 +120,15 @@ export class Risc0ApiClient {
 
   /**
    * Verify a path through the maze and generate a proof
+   * @param mazeProof - The maze proof to verify against
+   * @param moves - The moves to verify
+   * @param receiptKind - Optional receipt kind override (defaults to maze proof's receipt kind)
    */
-  async verifyPath(mazeProof: MazeProof, moves: number[]): Promise<PathProof> {
+  async verifyPath(mazeProof: MazeProof, moves: number[], receiptKind?: ReceiptKind): Promise<PathProof> {
     const request: VerifyPathRequest = {
       maze_proof: mazeProof,
       moves,
+      receipt_kind: receiptKind,
     };
 
     const response = await fetch(`${this.baseUrl}/api/verify-path`, {
@@ -175,19 +188,31 @@ export class Risc0ApiClient {
    * Format a RISC Zero receipt for display
    * Shows a shorthand representation of the nested proof structure
    */
-  formatReceipt(receipt: Receipt): string {
+  formatReceipt(receipt: Receipt, receiptKind: ReceiptKind): string {
     // Calculate receipt size from JSON serialization
     const receiptStr = JSON.stringify(receipt);
     const receiptKB = (receiptStr.length / 1024).toFixed(2);
+    const receiptBytes = receiptStr.length;
+
+    // Get receipt type details
+    const typeInfo = this.getReceiptTypeInfo(receiptKind);
+
+    // Format size with appropriate unit
+    const sizeDisplay = receiptBytes < 1024
+      ? `${receiptBytes} bytes`
+      : receiptBytes < 1024 * 100
+        ? `${receiptKB} KB`
+        : `${(receiptBytes / (1024 * 1024)).toFixed(2)} MB`;
 
     // Create a compact representation
     const lines = [
       '=== RISC Zero Receipt ===',
-      `Size: ${receiptKB} KB`,
-      `Type: SuccinctReceipt (STARK)`,
+      `Size: ${sizeDisplay}`,
+      `Type: ${typeInfo.name} (${typeInfo.cryptoType})`,
+      `Efficiency: ${typeInfo.description}`,
       '',
       'Structure:',
-      '  - InnerReceipt: Composite/Succinct proof',
+      `  - InnerReceipt: ${typeInfo.structure}`,
       '  - Seal: Cryptographic attestation',
       '  - Claim: Pre/post state + journal digest',
       '',
@@ -196,6 +221,40 @@ export class Risc0ApiClient {
     ];
 
     return lines.join('\n');
+  }
+
+  /**
+   * Get receipt type information based on receipt kind
+   */
+  private getReceiptTypeInfo(receiptKind: ReceiptKind): {
+    name: string;
+    cryptoType: string;
+    description: string;
+    structure: string;
+  } {
+    switch (receiptKind) {
+      case 'composite':
+        return {
+          name: 'Composite',
+          cryptoType: 'STARK',
+          description: 'Fast generation, large size (~1-2 MB)',
+          structure: 'Multiple segment proofs',
+        };
+      case 'succinct':
+        return {
+          name: 'Succinct',
+          cryptoType: 'STARK',
+          description: 'Balanced size and verification (~200 KB)',
+          structure: 'Compressed recursive proof',
+        };
+      case 'groth16':
+        return {
+          name: 'Groth16',
+          cryptoType: 'SNARK',
+          description: 'Ultra-compact, blockchain-friendly (~300 bytes)',
+          structure: 'zkSNARK elliptic curve proof',
+        };
+    }
   }
 
   /**

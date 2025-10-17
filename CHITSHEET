@@ -26,6 +26,7 @@ curl -L https://risczero.com/install | bash
 source "/root/.bashrc"
 
 rzup install
+rzup install risc0-groth16
 
 cd /workspace/
 
