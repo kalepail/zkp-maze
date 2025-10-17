@@ -39,9 +39,9 @@ cd circuit-risczero/
 
 RUSTFLAGS="-C target-cpu=native" cargo build -F cuda -r --package api-server
 
-apt-get install lsof
+apt-get install -y lsof
 
-kill -9 $(sudo lsof -t -i:8080)
+kill -9 $(lsof -t -i:8080)
 
 ./target/release/api-server &
 

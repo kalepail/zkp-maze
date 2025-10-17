@@ -14,7 +14,7 @@
 		"generate": "python3 generate_maze.py 2918957128 --no-preview",
 		"compile": "cd circuit-noir && nargo compile && cp target/circuit.json ../worker/container_src/circuit.json",
 		"execute": "cd circuit-noir && nargo execute && cp target/circuit.gz ../worker/container_src/circuit.gz",
-		"prove": "cd circuit-noir && bb prove -b target/circuit.json -w target/circuit.gz -o target && cp -rf ~/.bb-crs ../worker/container_src",
+		"prove": "rm -rf ~/.bb-crs && cd circuit-noir && bb prove -b target/circuit.json -w target/circuit.gz -o target && cp -rf ~/.bb-crs ../worker/container_src",
 		"nargo": "pnpm run compile && pnpm run execute && pnpm run prove && cd circuit-noir && nargo test"
 	},
 	"devDependencies": {

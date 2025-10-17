@@ -85,9 +85,15 @@ export default function MazeGame() {
       // Only warmup if the last warmup was more than 1 minute ago
       if (!noirProofHook.isWarmupValid()) {
         warmupInitiatedRef.current = true;
-        noirProofHook.warmupContainer().finally(() => {
-          warmupInitiatedRef.current = false;
-        });
+        noirProofHook.warmupContainer()
+          .then(() => {
+            // On success, allow future warmups
+            warmupInitiatedRef.current = false;
+          })
+          .catch(() => {
+            // On error, keep warmupInitiatedRef true to prevent infinite retries
+            // User will need to manually switch providers to retry
+          });
       }
     }
     // Reset the ref when switching away from remote mode
