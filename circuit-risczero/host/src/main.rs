@@ -1,4 +1,4 @@
-use host::{generate_maze_proof, verify_path_proof, verify_path_proof_receipt, MazeProof, PathProof};
+use host::{generate_maze_proof, verify_path_proof, verify_path_proof_receipt, MazeProof, PathProof, ReceiptKind};
 use std::env;
 use std::fs;
 use std::time::Instant;
@@ -29,7 +29,7 @@ fn main() {
     match command.as_str() {
         "generate-maze" => {
             if args.len() < 3 {
-                eprintln!("Usage: {} generate-maze <maze_seed> [output_file]", args[0]);
+                eprintln!("Usage: {} generate-maze <maze_seed> [--receipt-type <type>] [output_file]", args[0]);
                 std::process::exit(1);
             }
 
@@ -38,23 +38,56 @@ fn main() {
                 std::process::exit(1);
             });
 
-            let output_file = args.get(3).map(|s| s.as_str());
+            // Parse optional --receipt-type flag
+            let mut receipt_kind = ReceiptKind::default();
+            let mut output_file_idx = 3;
 
-            generate_maze_command(maze_seed, output_file);
+            if args.len() > 3 && args[3] == "--receipt-type" {
+                if args.len() < 5 {
+                    eprintln!("❌ Error: --receipt-type requires a value (composite|succinct|groth16)");
+                    std::process::exit(1);
+                }
+                receipt_kind = args[4].parse().unwrap_or_else(|e| {
+                    eprintln!("❌ Error: {}", e);
+                    std::process::exit(1);
+                });
+                output_file_idx = 5;
+            }
+
+            let output_file = args.get(output_file_idx).map(|s| s.as_str());
+
+            generate_maze_command(maze_seed, receipt_kind, output_file);
         }
 
         "verify-path" => {
             if args.len() < 4 {
-                eprintln!("Usage: {} verify-path <maze_proof_file> <moves_file> [output_file]", args[0]);
+                eprintln!("Usage: {} verify-path <maze_proof_file> <moves_file> [--receipt-type <type>] [output_file]", args[0]);
                 eprintln!("Error: Missing required arguments");
                 std::process::exit(1);
             }
 
             let maze_proof_file = &args[2];
             let moves_file = &args[3];
-            let output_file = args.get(4).map(|s| s.as_str());
 
-            verify_path_command(maze_proof_file, moves_file, output_file);
+            // Parse optional --receipt-type flag
+            let mut receipt_kind = None;
+            let mut output_file_idx = 4;
+
+            if args.len() > 4 && args[4] == "--receipt-type" {
+                if args.len() < 6 {
+                    eprintln!("❌ Error: --receipt-type requires a value (composite|succinct|groth16)");
+                    std::process::exit(1);
+                }
+                receipt_kind = Some(args[5].parse().unwrap_or_else(|e| {
+                    eprintln!("❌ Error: {}", e);
+                    std::process::exit(1);
+                }));
+                output_file_idx = 6;
+            }
+
+            let output_file = args.get(output_file_idx).map(|s| s.as_str());
+
+            verify_path_command(maze_proof_file, moves_file, receipt_kind, output_file);
         }
 
         "verify-proof" => {
@@ -81,16 +114,21 @@ fn print_usage(program: &str) {
     eprintln!("Usage: {} <command> [options]", program);
     eprintln!();
     eprintln!("Commands:");
-    eprintln!("  generate-maze <seed> [output_file]");
+    eprintln!("  generate-maze <seed> [--receipt-type <type>] [output_file]");
     eprintln!("      Generate a maze proof from a seed");
     eprintln!("      - seed: Integer seed for maze generation");
+    eprintln!("      - --receipt-type: Optional receipt type (composite|succinct|groth16)");
+    eprintln!("                        Default: succinct");
     eprintln!("      - output_file: Optional file to save the maze proof (JSON)");
     eprintln!("                     Defaults to: <seed>_maze_proof.json");
     eprintln!();
-    eprintln!("  verify-path <maze_proof_file> <moves_file> [output_file]");
+    eprintln!("  verify-path <maze_proof_file> <moves_file> [--receipt-type <type>] [output_file]");
     eprintln!("      Generate a path verification proof");
     eprintln!("      - maze_proof_file: JSON file containing the maze proof");
     eprintln!("      - moves_file: JSON file containing the moves array");
+    eprintln!("      - --receipt-type: Optional receipt type override (composite|succinct|groth16)");
+    eprintln!("                        If not provided, auto-detects from maze_proof");
+    eprintln!("                        Useful for succinct maze → groth16 path compression");
     eprintln!("      - output_file: Optional file to save the path proof (JSON)");
     eprintln!("                     Defaults to: <seed>_path_proof.json");
     eprintln!();
@@ -98,23 +136,29 @@ fn print_usage(program: &str) {
     eprintln!("      Cryptographically verify a path proof receipt");
     eprintln!("      - path_proof_file: JSON file containing the path proof");
     eprintln!();
+    eprintln!("Receipt Types:");
+    eprintln!("  composite: Fastest proving, largest size (~MB)");
+    eprintln!("  succinct:  Balanced, medium size (~200 KB) - recommended");
+    eprintln!("  groth16:   Slowest proving, smallest size (~200 bytes) - best for network transfer");
+    eprintln!();
     eprintln!("Example workflow:");
-    eprintln!("  1. Generate maze:  {} generate-maze 2918957128", program);
+    eprintln!("  1. Generate maze:  {} generate-maze 2918957128 --receipt-type groth16", program);
     eprintln!("     (saves to 2918957128_maze_proof.json)");
     eprintln!("  2. Generate proof: {} verify-path 2918957128_maze_proof.json moves.json", program);
     eprintln!("     (saves to 2918957128_path_proof.json)");
     eprintln!("  3. Verify proof:   {} verify-proof 2918957128_path_proof.json", program);
 }
 
-fn generate_maze_command(maze_seed: u32, output_file: Option<&str>) {
+fn generate_maze_command(maze_seed: u32, receipt_kind: ReceiptKind, output_file: Option<&str>) {
     println!("📋 Generating maze proof");
     println!("  Maze seed: {}", maze_seed);
+    println!("  Receipt type: {}", receipt_kind);
     println!();
 
     println!("🔐 Generating proof (this may take a while)...");
     let start = Instant::now();
 
-    match generate_maze_proof(maze_seed) {
+    match generate_maze_proof(maze_seed, receipt_kind) {
         Ok(maze_proof) => {
             let duration = start.elapsed();
             println!("  Proving time: {:.2}s", duration.as_secs_f64());
@@ -159,10 +203,13 @@ fn generate_maze_command(maze_seed: u32, output_file: Option<&str>) {
     }
 }
 
-fn verify_path_command(maze_proof_file: &str, moves_file: &str, output_file: Option<&str>) {
+fn verify_path_command(maze_proof_file: &str, moves_file: &str, receipt_kind: Option<ReceiptKind>, output_file: Option<&str>) {
     println!("📋 Generating path verification proof");
     println!("  Maze proof file: {}", maze_proof_file);
     println!("  Moves file: {}", moves_file);
+    if let Some(kind) = receipt_kind {
+        println!("  Receipt type override: {}", kind);
+    }
     println!();
 
     // Load maze proof
@@ -193,7 +240,7 @@ fn verify_path_command(maze_proof_file: &str, moves_file: &str, output_file: Opt
     println!("🔐 Generating path verification proof (this may take a while)...");
     let start = Instant::now();
 
-    match verify_path_proof(&maze_proof, moves) {
+    match verify_path_proof(&maze_proof, moves, receipt_kind) {
         Ok(path_proof) => {
             let duration = start.elapsed();
             println!("  Proving time: {:.2}s", duration.as_secs_f64());

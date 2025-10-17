@@ -1,7 +1,58 @@
 use maze_core::{Maze, MAZE_JOURNAL_SIZE, GRID_SIZE, GRID_DATA_SIZE, MAX_MOVES};
 use methods::{MAZE_GEN_ELF, MAZE_GEN_ID, PATH_VERIFY_ELF, PATH_VERIFY_ID};
-use risc0_zkvm::{default_prover, ExecutorEnv, Receipt};
+use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts, Receipt};
 use serde::{Deserialize, Serialize};
+
+/// Receipt type for proof generation
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ReceiptKind {
+    /// Composite receipt - fastest to generate, largest size (multiple MB)
+    Composite,
+    /// Succinct receipt - STARK proof, medium size (~200 KB)
+    Succinct,
+    /// Groth16 receipt - SNARK proof, smallest size (~200-300 bytes)
+    Groth16,
+}
+
+impl Default for ReceiptKind {
+    fn default() -> Self {
+        ReceiptKind::Succinct
+    }
+}
+
+impl std::str::FromStr for ReceiptKind {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "composite" => Ok(ReceiptKind::Composite),
+            "succinct" => Ok(ReceiptKind::Succinct),
+            "groth16" => Ok(ReceiptKind::Groth16),
+            _ => Err(format!("Invalid receipt kind: '{}'. Must be 'composite', 'succinct', or 'groth16'", s)),
+        }
+    }
+}
+
+impl std::fmt::Display for ReceiptKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ReceiptKind::Composite => write!(f, "composite"),
+            ReceiptKind::Succinct => write!(f, "succinct"),
+            ReceiptKind::Groth16 => write!(f, "groth16"),
+        }
+    }
+}
+
+impl From<ReceiptKind> for risc0_zkvm::ReceiptKind {
+    fn from(kind: ReceiptKind) -> Self {
+        match kind {
+            ReceiptKind::Composite => risc0_zkvm::ReceiptKind::Composite,
+            ReceiptKind::Succinct => risc0_zkvm::ReceiptKind::Succinct,
+            ReceiptKind::Groth16 => risc0_zkvm::ReceiptKind::Groth16,
+        }
+    }
+}
 
 /// Output from maze generation proof (Hash-Based Architecture)
 ///
@@ -26,6 +77,9 @@ pub struct MazeProof {
     /// The receipt proving correct maze generation
     /// Journal contains: seed (4 bytes) + grid_hash (32 bytes) = 36 bytes
     pub receipt: Receipt,
+
+    /// The type of receipt generated (composite, succinct, or groth16)
+    pub receipt_kind: ReceiptKind,
 }
 
 /// Output from path verification proof
@@ -39,6 +93,9 @@ pub struct PathProof {
 
     /// The receipt proving path validity (includes maze proof assumption)
     pub receipt: Receipt,
+
+    /// The type of receipt generated (composite, succinct, or groth16)
+    pub receipt_kind: ReceiptKind,
 }
 
 /// Generate a maze proof from a seed (Hash-Based Architecture).
@@ -53,6 +110,7 @@ pub struct PathProof {
 ///
 /// # Arguments
 /// * `maze_seed` - The seed identifying the maze
+/// * `receipt_kind` - The type of receipt to generate (Composite, Succinct, or Groth16)
 ///
 /// # Returns
 /// * `Ok(MazeProof)` - The maze proof with receipt, hash, and grid data
@@ -60,9 +118,9 @@ pub struct PathProof {
 ///
 /// # Example
 /// ```no_run
-/// use host::generate_maze_proof;
+/// use host::{generate_maze_proof, ReceiptKind};
 ///
-/// let maze_proof = generate_maze_proof(2918957128).unwrap();
+/// let maze_proof = generate_maze_proof(2918957128, ReceiptKind::Groth16).unwrap();
 /// println!("Maze generated: seed={}, hash={:02x}{:02x}...",
 ///          maze_proof.maze_seed,
 ///          maze_proof.grid_hash[0],
@@ -70,18 +128,26 @@ pub struct PathProof {
 /// ```
 pub fn generate_maze_proof(
     maze_seed: u32,
+    receipt_kind: ReceiptKind,
 ) -> Result<MazeProof, Box<dyn std::error::Error>> {
-    tracing::info!("Generating maze proof for seed {}", maze_seed);
+    tracing::info!("Generating maze proof for seed {} with receipt kind: {}", maze_seed, receipt_kind);
 
     // Build execution environment
     let mut builder = ExecutorEnv::builder();
     builder.write(&maze_seed)?;
     let env = builder.build()?;
 
+    // Configure prover options with desired receipt kind
+    let opts = match receipt_kind {
+        ReceiptKind::Composite => ProverOpts::composite(),
+        ReceiptKind::Succinct => ProverOpts::succinct(),
+        ReceiptKind::Groth16 => ProverOpts::groth16(),
+    };
+
     // Generate proof
     let prover = default_prover();
     let prove_info = prover
-        .prove(env, MAZE_GEN_ELF)
+        .prove_with_opts(env, MAZE_GEN_ELF, &opts)
         .map_err(|e| format!("Failed to generate maze proof: {}", e))?;
 
     let receipt = prove_info.receipt;
@@ -114,13 +180,14 @@ pub fn generate_maze_proof(
     tracing::info!("Regenerating maze to extract grid data...");
     let grid_data = regenerate_maze_grid(maze_seed)?;
 
-    tracing::info!("Maze proof generated successfully (journal: {} bytes)", MAZE_JOURNAL_SIZE);
+    tracing::info!("Maze proof generated successfully (journal: {} bytes, receipt kind: {})", MAZE_JOURNAL_SIZE, receipt_kind);
 
     Ok(MazeProof {
         maze_seed: maze_seed_out,
         grid_hash,
         grid_data,
         receipt,
+        receipt_kind,
     })
 }
 
@@ -147,9 +214,15 @@ fn regenerate_maze_grid(seed: u32) -> Result<Vec<Vec<u8>>, Box<dyn std::error::E
 /// The final receipt proves all three conditions. Note: This function generates
 /// the proof but does not verify it. Use `verify_path_proof_receipt()` to verify.
 ///
+/// The receipt type can be overridden, or will be automatically detected from
+/// the maze proof if not specified. This allows for flexible proof composition,
+/// such as using a Succinct maze proof with a Groth16 path proof for maximum
+/// compression of the final result.
+///
 /// # Arguments
 /// * `maze_proof` - The maze proof to verify against (contains receipt, hash, and grid)
 /// * `moves` - Vector of move directions (0=NORTH, 1=EAST, 2=SOUTH, 3=WEST)
+/// * `receipt_kind_override` - Optional receipt type override (if None, uses maze proof's type)
 ///
 /// # Returns
 /// * `Ok(PathProof)` - The path verification result with receipt
@@ -157,18 +230,23 @@ fn regenerate_maze_grid(seed: u32) -> Result<Vec<Vec<u8>>, Box<dyn std::error::E
 ///
 /// # Example
 /// ```no_run
-/// use host::{generate_maze_proof, verify_path_proof};
+/// use host::{generate_maze_proof, verify_path_proof, ReceiptKind};
 ///
-/// let maze_proof = generate_maze_proof(2918957128).unwrap();
+/// let maze_proof = generate_maze_proof(2918957128, ReceiptKind::Succinct).unwrap();
 /// let moves = vec![1, 1, 2, 2]; // EAST, EAST, SOUTH, SOUTH
-/// let path_proof = verify_path_proof(&maze_proof, moves).unwrap();
+/// // Use Groth16 for final proof even though maze is Succinct
+/// let path_proof = verify_path_proof(&maze_proof, moves, Some(ReceiptKind::Groth16)).unwrap();
 /// println!("Path valid: {}", path_proof.is_valid);
 /// ```
 pub fn verify_path_proof(
     maze_proof: &MazeProof,
     moves: Vec<u8>,
+    receipt_kind_override: Option<ReceiptKind>,
 ) -> Result<PathProof, Box<dyn std::error::Error>> {
-    tracing::info!("Verifying path proof for maze seed {}", maze_proof.maze_seed);
+    // Use override if provided, otherwise auto-detect from maze proof
+    let receipt_kind = receipt_kind_override.unwrap_or(maze_proof.receipt_kind);
+
+    tracing::info!("Verifying path proof for maze seed {} with receipt kind: {}", maze_proof.maze_seed, receipt_kind);
 
     // Prepare inputs for path verification guest
     let move_count = moves.len().min(MAX_MOVES) as u16;
@@ -212,13 +290,20 @@ pub fn verify_path_proof(
 
     let env = builder.build()?;
 
+    // Configure prover options with detected receipt kind
+    let opts = match receipt_kind {
+        ReceiptKind::Composite => ProverOpts::composite(),
+        ReceiptKind::Succinct => ProverOpts::succinct(),
+        ReceiptKind::Groth16 => ProverOpts::groth16(),
+    };
+
     // Generate proof with assumptions
     // Note: This creates a "conditional receipt" with an assumption
-    // The assumption will be resolved when we request a succinct receipt
+    // The assumption will be resolved when we request a succinct or groth16 receipt
     tracing::info!("Generating path verification proof...");
     let prover = default_prover();
     let prove_info = prover
-        .prove(env, PATH_VERIFY_ELF)
+        .prove_with_opts(env, PATH_VERIFY_ELF, &opts)
         .map_err(|e| format!("Failed to generate path proof: {}", e))?;
 
     let receipt = prove_info.receipt;
@@ -254,6 +339,7 @@ pub fn verify_path_proof(
         is_valid: is_valid_u32 != 0,
         maze_seed: maze_seed_out,
         receipt,
+        receipt_kind,
     })
 }
 

@@ -1,6 +1,6 @@
 use actix_web::{middleware, web, App, HttpResponse, HttpServer, Responder};
 use actix_cors::Cors;
-use host::{generate_maze_proof, verify_path_proof, verify_path_proof_receipt, MazeProof, PathProof};
+use host::{generate_maze_proof, verify_path_proof, verify_path_proof_receipt, MazeProof, PathProof, ReceiptKind};
 use serde::{Deserialize, Serialize};
 
 // Request/Response types
@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 struct GenerateMazeRequest {
     seed: u32,
+    #[serde(default)]
+    receipt_kind: Option<ReceiptKind>,
 }
 
 #[derive(Debug, Serialize)]
@@ -23,6 +25,8 @@ struct GenerateMazeResponse {
 struct VerifyPathRequest {
     maze_proof: MazeProof,
     moves: Vec<u8>,
+    #[serde(default)]
+    receipt_kind: Option<ReceiptKind>,
 }
 
 #[derive(Debug, Serialize)]
@@ -55,9 +59,10 @@ struct VerifyProofResponse {
 async fn generate_maze(
     req: web::Json<GenerateMazeRequest>,
 ) -> impl Responder {
-    tracing::info!("Received generate-maze request for seed: {}", req.seed);
+    let receipt_kind = req.receipt_kind.unwrap_or_default();
+    tracing::info!("Received generate-maze request for seed: {}, receipt_kind: {}", req.seed, receipt_kind);
 
-    match generate_maze_proof(req.seed) {
+    match generate_maze_proof(req.seed, receipt_kind) {
         Ok(maze_proof) => {
             tracing::info!("Successfully generated maze proof for seed: {}", req.seed);
             HttpResponse::Ok().json(GenerateMazeResponse {
@@ -83,12 +88,13 @@ async fn verify_path(
     req: web::Json<VerifyPathRequest>,
 ) -> impl Responder {
     tracing::info!(
-        "Received verify-path request for maze seed: {}, moves: {}",
+        "Received verify-path request for maze seed: {}, moves: {}, receipt_kind: {:?}",
         req.maze_proof.maze_seed,
-        req.moves.len()
+        req.moves.len(),
+        req.receipt_kind
     );
 
-    match verify_path_proof(&req.maze_proof, req.moves.clone()) {
+    match verify_path_proof(&req.maze_proof, req.moves.clone(), req.receipt_kind) {
         Ok(path_proof) => {
             tracing::info!(
                 "Successfully verified path for maze seed: {}, valid: {}",
