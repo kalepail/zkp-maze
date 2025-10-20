@@ -53,6 +53,15 @@ export class MazeGenerator {
     };
   }
 
+  // Integer-only choice_index method matching Python/Rust implementations
+  // Emulates: int((state / M) * n) = (state * n) / M
+  private choiceIndex(n: number): number {
+    const M = 2147483647; // 2^31 - 1
+    this.rngState = (this.rngState * 48271) % M;
+    // Use integer division to emulate float-based selection
+    return Math.floor((this.rngState * n) / M);
+  }
+
   private initializeCells() {
     for (let r = 0; r < this.rows; r++) {
       const row: Cell[] = [];
@@ -115,13 +124,16 @@ export class MazeGenerator {
     while (stack.length > 0) {
       const neighbors = this.getUnvisitedNeighbors(current);
       if (neighbors.length > 0) {
-        const randomIndex = Math.floor(this.rng() * neighbors.length);
+        // Use integer-only arithmetic to match Python/Rust implementations
+        const randomIndex = this.choiceIndex(neighbors.length);
         const [direction, nextCell] = neighbors[randomIndex];
         this.removeWall(current, direction, nextCell);
         nextCell.visited = true;
         stack.push(nextCell);
         current = nextCell;
       } else {
+        // Match Python behavior: current = stack.pop()
+        // This keeps current pointing to the popped cell
         current = stack.pop()!;
       }
     }

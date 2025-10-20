@@ -87,20 +87,27 @@ impl Maze {
 
     /// Recursive backtracker algorithm (iterative with explicit stack)
     /// OPTIMIZATION: Uses fixed-size stack array instead of Vec for zero allocations
+    ///
+    /// NOTE: This implementation matches the Python algorithm exactly, maintaining
+    /// a separate 'current' variable rather than peeking at the stack each iteration.
+    /// While these approaches seem equivalent, the explicit current tracking ensures
+    /// identical behavior across all seeds and maze sizes.
     fn recursive_backtracker(&mut self, rng: &mut SimpleLCG) {
         // Fixed-size stack (max 20x20 = 400 cells)
         let mut stack = [(0usize, 0usize); 400];
         let mut stack_len = 0;
-        let start = (0, 0);
+
+        // Start at (0, 0) - matches Python's self.start
+        let mut current = (0, 0);
 
         // Mark start as visited and push to stack
         self.cells[0][0].visited = true;
-        stack[stack_len] = start;
+        stack[stack_len] = current;
         stack_len += 1;
 
         while stack_len > 0 {
-            // Peek at top of stack
-            let (row, col) = stack[stack_len - 1];
+            // Get unvisited neighbors of current cell
+            let (row, col) = current;
             let (neighbors, neighbor_count) = self.get_unvisited_neighbors(row, col);
 
             if neighbor_count > 0 {
@@ -116,9 +123,25 @@ impl Maze {
                 self.cells[nr][nc].visited = true;
                 stack[stack_len] = (nr, nc);
                 stack_len += 1;
+
+                // Move current to the neighbor (matches Python's current = next_cell)
+                current = (nr, nc);
             } else {
                 // No unvisited neighbors, backtrack (pop)
+                // Python does: current = stack.pop()
+                // The pop() returns the element AND removes it, so current gets the POPPED value
+                // This means current stays pointing to the cell we're backtracking from!
+                // Next iteration checks that cell again (no neighbors), then pops again
+
+                // Get the value we're about to pop (which is current)
+                let popped = stack[stack_len - 1];
+                // Remove it from stack
                 stack_len -= 1;
+                // Assign popped value to current (which was already current, so it stays the same)
+                current = popped;
+
+                // Result: current still points to the same cell, stack is one shorter
+                // Next iteration will check this cell for neighbors again (finds none), then backtrack again
             }
         }
     }
