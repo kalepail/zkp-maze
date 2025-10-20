@@ -38,6 +38,6 @@ node_modules
 .claude
 .astro
 target
-!circuit/target/circuit.json
+!circuit-noir/target/circuit.json
 dist
 .wrangler

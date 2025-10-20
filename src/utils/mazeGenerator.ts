@@ -27,7 +27,6 @@ export class MazeGenerator {
   cols: number;
   seed: number;
   private cells: Cell[][] = [];
-  private rng: () => number;
   private rngState: number;
   // Start and end are always at opposite corners (cell coordinates)
   private readonly start: [number, number] = [0, 0];
@@ -38,19 +37,17 @@ export class MazeGenerator {
     this.cols = cols;
     this.seed = seed;
     this.rngState = seed;
-    this.rng = this.createSeededRandom(seed);
     this.end = [rows - 1, cols - 1];
     this.initializeCells();
   }
 
-  // Park-Miller Linear Congruential Generator (MINSTD)
-  // Must match Python implementation exactly for deterministic maze generation
-  // Multiplier: 48271, Modulus: 2^31 - 1 (2147483647)
-  private createSeededRandom(_seed: number): () => number {
-    return () => {
-      this.rngState = (this.rngState * 48271) % 2147483647;
-      return this.rngState / 2147483647;
-    };
+  // Integer-only choice_index method matching Python/Rust implementations
+  // Emulates: int((state / M) * n) = (state * n) / M
+  private choiceIndex(n: number): number {
+    const M = 2147483647; // 2^31 - 1
+    this.rngState = (this.rngState * 48271) % M;
+    // Use integer division to emulate float-based selection
+    return Math.floor((this.rngState * n) / M);
   }
 
   private initializeCells() {
@@ -115,13 +112,16 @@ export class MazeGenerator {
     while (stack.length > 0) {
       const neighbors = this.getUnvisitedNeighbors(current);
       if (neighbors.length > 0) {
-        const randomIndex = Math.floor(this.rng() * neighbors.length);
+        // Use integer-only arithmetic to match Python/Rust implementations
+        const randomIndex = this.choiceIndex(neighbors.length);
         const [direction, nextCell] = neighbors[randomIndex];
         this.removeWall(current, direction, nextCell);
         nextCell.visited = true;
         stack.push(nextCell);
         current = nextCell;
       } else {
+        // Match Python behavior: current = stack.pop()
+        // This keeps current pointing to the popped cell
         current = stack.pop()!;
       }
     }

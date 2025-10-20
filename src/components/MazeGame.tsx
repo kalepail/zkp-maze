@@ -5,7 +5,9 @@ import { NORTH, EAST, SOUTH, WEST } from '../constants/maze';
 import { ANIMATION } from '../constants/theme';
 import { useGameState } from '../hooks/useGameState';
 import { useMazeProof } from '../hooks/useMazeProof';
+import { useRisc0Proof } from '../hooks/useRisc0Proof';
 import { useSwipeControls } from '../hooks/useSwipeControls';
+import type { ProofProvider } from '../constants/provider';
 import MazeCanvas from './MazeCanvas';
 import GameControls from './GameControls';
 import StatsPanel from './StatsPanel';
@@ -13,12 +15,24 @@ import LogsPanel from './LogsPanel';
 import ProofPanel from './ProofPanel';
 import MobileControls from './MobileControls';
 
+// Determine initial provider based on URL path
+function getInitialProvider(): ProofProvider {
+  const path = window.location.pathname;
+  if (path === '/risc0') {
+    return 'risc0';
+  }
+  // Default to noir-local for / or /noir or any other path
+  return 'noir-local';
+}
+
 export default function MazeGame() {
   const [initialMaze, setInitialMaze] = useState<number[][]>([]);
   const [loading, setLoading] = useState(true);
-  const [useLocalProof, setUseLocalProof] = useState(true);
+  const [provider, setProvider] = useState<ProofProvider>(getInitialProvider());
   const [logs, setLogs] = useState<string[]>([]);
   const [proof, setProof] = useState('');
+  const [currentSeed, setCurrentSeed] = useState(mazeConfig.seed);
+  const [generatingMaze, setGeneratingMaze] = useState(false);
   const warmupInitiatedRef = useRef(false);
 
   // Shared log management
@@ -46,30 +60,127 @@ export default function MazeGame() {
 
   const gameState = useGameState(initialMaze);
 
-  // Use unified proof hook with mode parameter
-  const proofHook = useMazeProof(
-    useLocalProof ? 'local' : 'server',
+  // Initialize proof hooks
+  const noirProofHook = useMazeProof(
+    provider === 'noir-local' ? 'local' : 'server',
     mazeConfig.seed,
     addLog,
     setProof
   );
 
-  // Warmup container when switching to server mode
+  const risc0ProofHook = useRisc0Proof(
+    currentSeed,
+    addLog,
+    setProof
+  );
+
+  // Determine which hook to use based on provider
+  const isNoir = provider === 'noir-local' || provider === 'noir-remote';
+  const isRisc0 = provider === 'risc0';
+  const proving = isNoir ? noirProofHook.proving : risc0ProofHook.proving;
+
+  // Warmup container when switching to Noir remote mode (only if warmup expired)
   useEffect(() => {
-    if (!useLocalProof && !warmupInitiatedRef.current) {
-      warmupInitiatedRef.current = true;
-      proofHook.warmupContainer();
+    if (provider === 'noir-remote' && !warmupInitiatedRef.current) {
+      // Only warmup if the last warmup was more than 1 minute ago
+      if (!noirProofHook.isWarmupValid()) {
+        warmupInitiatedRef.current = true;
+        noirProofHook.warmupContainer()
+          .then(() => {
+            // On success, allow future warmups
+            warmupInitiatedRef.current = false;
+          })
+          .catch(() => {
+            // On error, keep warmupInitiatedRef true to prevent infinite retries
+            // User will need to manually switch providers to retry
+          });
+      }
     }
-    // Reset the ref when switching back to local mode
-    if (useLocalProof) {
+    // Reset the ref when switching away from remote mode
+    if (provider !== 'noir-remote') {
       warmupInitiatedRef.current = false;
     }
-  }, [useLocalProof, proofHook.warmupContainer]);
+  }, [provider, noirProofHook]);
 
-  // Handle warmup when toggling to remote mode
-  const handleUseLocalProofChange = useCallback((useLocal: boolean) => {
-    setUseLocalProof(useLocal);
-  }, []);
+  // Check RISC Zero server health when switching to RISC Zero
+  const lastProviderRef = useRef<ProofProvider | null>(null);
+
+  useEffect(() => {
+    // Only run when provider changes to risc0
+    if (provider === 'risc0' && lastProviderRef.current !== 'risc0') {
+      lastProviderRef.current = 'risc0';
+
+      // Check health only - don't auto-generate maze proof
+      risc0ProofHook.checkHealth(); // Update UI status indicator
+    } else if (provider !== 'risc0' && lastProviderRef.current === 'risc0') {
+      lastProviderRef.current = null;
+    }
+    // Intentionally omitting risc0ProofHook from dependencies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider]);
+
+  // Handle provider change
+  const handleProviderChange = useCallback((newProvider: ProofProvider) => {
+    setProvider(newProvider);
+    clearProof();
+
+    // Reset to original seed when switching away from RISC Zero
+    if (newProvider !== 'risc0') {
+      if (currentSeed !== mazeConfig.seed) {
+        setCurrentSeed(mazeConfig.seed);
+        // Regenerate original maze
+        const generator = new MazeGenerator(
+          mazeConfig.rows,
+          mazeConfig.cols,
+          mazeConfig.seed
+        );
+        generator.generate();
+        const grid = generator.toBinaryGrid();
+        setInitialMaze(grid);
+        // Mark that we need to reset game state after maze updates to clear old solution path
+        pendingMazeResetRef.current = true;
+        addLog(`🎮 Switched to Noir mode. Maze reset to seed ${mazeConfig.seed}.`);
+      }
+    }
+  }, [clearProof, currentSeed, addLog]);
+
+  // Generate a new random maze (RISC Zero only)
+  const generateNewMaze = useCallback(async () => {
+    if (provider !== 'risc0' || generatingMaze) return;
+
+    try {
+      setGeneratingMaze(true);
+      const newSeed = Math.floor(Math.random() * 4294967295); // Max u32 value
+
+      // Generate maze client-side only
+      const generator = new MazeGenerator(
+        mazeConfig.rows,
+        mazeConfig.cols,
+        newSeed
+      );
+      generator.generate();
+      const grid = generator.toBinaryGrid();
+
+      // Update the seed
+      setCurrentSeed(newSeed);
+
+      // Update the maze grid
+      setInitialMaze(grid);
+
+      // Clear proof
+      clearProof();
+
+      // Mark that we need to reset game state after maze updates
+      pendingMazeResetRef.current = true;
+
+      addLog(`🎮 Maze generated from seed ${newSeed}! Use arrow keys to navigate.`);
+    } catch (error) {
+      addLog('❌ Failed to generate new maze');
+      console.error(error);
+    } finally {
+      setGeneratingMaze(false);
+    }
+  }, [provider, generatingMaze, addLog, clearProof]);
 
   const {
     maze,
@@ -91,6 +202,17 @@ export default function MazeGame() {
     handleMove,
     reset,
   } = gameState;
+
+  // Track when we're generating a new maze to trigger reset after state updates
+  const pendingMazeResetRef = useRef(false);
+
+  // Reset game state after new maze is generated
+  useEffect(() => {
+    if (pendingMazeResetRef.current && maze.length > 0) {
+      reset();
+      pendingMazeResetRef.current = false;
+    }
+  }, [maze, reset]);
 
   // Keyboard controls
   useEffect(() => {
@@ -191,7 +313,7 @@ export default function MazeGame() {
   }, [playerPos, endPos, maze]);
 
   const autoSolve = useCallback(async () => {
-    if (won || proofHook.proving || autoSolving) return;
+    if (won || proving || autoSolving) return;
 
     setAutoSolving(true);
     addLog('🤖 Auto-solving maze...');
@@ -254,7 +376,7 @@ export default function MazeGame() {
     animateMove();
   }, [
     won,
-    proofHook.proving,
+    proving,
     autoSolving,
     findPath,
     setAutoSolving,
@@ -268,9 +390,13 @@ export default function MazeGame() {
 
   const handleGenerateProof = useCallback(() => {
     if (won) {
-      proofHook.generateProof(moves);
+      if (isNoir) {
+        noirProofHook.generateProof(moves);
+      } else if (isRisc0) {
+        risc0ProofHook.generateProof(moves);
+      }
     }
-  }, [won, moves, proofHook]);
+  }, [won, moves, isNoir, isRisc0, noirProofHook, risc0ProofHook]);
 
   const handleReset = useCallback(() => {
     reset();
@@ -294,8 +420,16 @@ export default function MazeGame() {
         <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
           {/* Title Bar */}
           <div className="bg-black text-white px-4 py-2 font-mono text-sm flex items-center justify-between">
-            <span>🧩 Noir Maze Challenge</span>
-            <div className="flex gap-2">
+            <span>{isRisc0 ? '⚡ RISC Zero Maze Challenge' : '🧩 Noir Maze Challenge'}</span>
+            <div className="flex gap-2 items-center">
+              {isRisc0 && (
+                <div
+                  className={`w-3 h-3 rounded-full ${
+                    risc0ProofHook.serverHealthy ? 'bg-green-500' : 'bg-red-500'
+                  }`}
+                  title={risc0ProofHook.serverHealthy ? 'Server online' : 'Server offline'}
+                />
+              )}
               <div className="w-4 h-4 border border-white"></div>
             </div>
           </div>
@@ -304,7 +438,7 @@ export default function MazeGame() {
           <div className="p-4 md:p-6">
             {/* Stats Panel */}
             <StatsPanel
-              mazeSeed={mazeConfig.seed}
+              mazeSeed={currentSeed}
               currentDir={currentDir}
               moveCount={moves.length}
               elapsedTime={elapsedTime}
@@ -313,11 +447,13 @@ export default function MazeGame() {
             {/* Game Controls */}
             <GameControls
               won={won}
-              proving={proofHook.proving}
+              proving={proving}
               autoSolving={autoSolving}
-              useLocalProof={useLocalProof}
-              onUseLocalProofChange={handleUseLocalProofChange}
+              provider={provider}
+              generatingMaze={generatingMaze}
+              onProviderChange={handleProviderChange}
               onGenerateProof={handleGenerateProof}
+              onGenerateNewMaze={generateNewMaze}
               onAutoSolve={autoSolve}
               onReset={handleReset}
             />
@@ -325,7 +461,7 @@ export default function MazeGame() {
             {/* Mobile Touch Controls */}
             <MobileControls
               onMove={handleMove}
-              disabled={won || autoSolving || proofHook.proving}
+              disabled={won || autoSolving || proving}
             />
 
             <div className="grid md:grid-cols-2 md:grid-rows-2 gap-4 mt-4 md:max-h-[600px]">
@@ -345,7 +481,7 @@ export default function MazeGame() {
               <LogsPanel logs={logs} />
 
               {/* Proof - row 2 */}
-              <ProofPanel proof={proof} proving={proofHook.proving} />
+              <ProofPanel proof={proof} proving={proving} />
             </div>
           </div>
         </div>

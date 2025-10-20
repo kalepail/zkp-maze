@@ -1,11 +1,14 @@
+import type { ProofProvider } from '../constants/provider';
 
 interface GameControlsProps {
   won: boolean;
   proving: boolean;
   autoSolving: boolean;
-  useLocalProof: boolean;
-  onUseLocalProofChange: (useLocal: boolean) => void;
+  provider: ProofProvider;
+  generatingMaze: boolean;
+  onProviderChange: (provider: ProofProvider) => void;
   onGenerateProof: () => void;
+  onGenerateNewMaze: () => void;
   onAutoSolve: () => void;
   onReset: () => void;
 }
@@ -14,25 +17,56 @@ export default function GameControls({
   won,
   proving,
   autoSolving,
-  useLocalProof,
-  onUseLocalProofChange,
+  provider,
+  generatingMaze,
+  onProviderChange,
   onGenerateProof,
+  onGenerateNewMaze,
   onAutoSolve,
   onReset,
 }: GameControlsProps) {
+  const isNoir = provider === 'noir-local' || provider === 'noir-remote';
+  const isRisc0 = provider === 'risc0';
+
   return (
     <div className="space-y-3 mt-3">
-      {/* Proof mode toggle */}
-      <label className="flex items-center gap-2 font-mono text-sm cursor-pointer">
-        <input
-          type="checkbox"
-          checked={useLocalProof}
-          onChange={(e) => onUseLocalProofChange(e.target.checked)}
-          disabled={proving}
-          className="w-4 h-4 border-2 border-black cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        />
-        <span>Solve Locally (in-browser)</span>
-      </label>
+      {/* Provider toggle buttons */}
+      <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={() => onProviderChange(isRisc0 ? 'noir-local' : 'risc0')}
+          disabled={proving || autoSolving}
+          className="px-4 py-2 bg-black text-white font-mono text-sm border-2 border-black hover:bg-white hover:text-black active:translate-x-[2px] active:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+          aria-label="Toggle between Noir and RISC Zero providers"
+        >
+          {isRisc0 ? '🧩 Switch to Noir' : '⚡ Switch to RISC Zero'}
+        </button>
+
+        {/* RISC Zero only: Generate New Maze button */}
+        {isRisc0 && (
+          <button
+            onClick={onGenerateNewMaze}
+            disabled={proving || generatingMaze || autoSolving}
+            className="px-4 py-2 bg-purple-700 text-white font-mono text-sm border-2 border-black hover:bg-purple-600 active:translate-x-[2px] active:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            aria-label="Generate a new random maze"
+          >
+            {generatingMaze ? '🎲 Generating...' : '🎲 New Maze'}
+          </button>
+        )}
+      </div>
+
+      {/* Noir-specific: Local/Remote toggle */}
+      {isNoir && (
+        <label className="flex items-center gap-2 font-mono text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={provider === 'noir-local'}
+            onChange={(e) => onProviderChange(e.target.checked ? 'noir-local' : 'noir-remote')}
+            disabled={proving}
+            className="w-4 h-4 border-2 border-black cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+          <span>Solve Locally (in-browser)</span>
+        </label>
+      )}
 
       {/* Action buttons */}
       <div className="flex gap-3 flex-wrap">
@@ -42,7 +76,9 @@ export default function GameControls({
         className="px-6 py-2 bg-black text-white font-mono border-2 border-black hover:bg-white hover:text-black active:translate-x-[2px] active:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
         aria-label="Generate zero-knowledge proof of your solution"
       >
-        {proving ? 'Proving...' : `Generate Proof (${useLocalProof ? 'local' : 'remote'})`}
+        {proving ? 'Proving...' :
+          isRisc0 ? 'Generate Proof (RISC Zero)' :
+          `Generate Proof (${provider === 'noir-local' ? 'local' : 'remote'})`}
       </button>
       <button
         onClick={onAutoSolve}

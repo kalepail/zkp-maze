@@ -4,7 +4,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Change to the circuit directory
-cd "$SCRIPT_DIR/circuit" || exit 1
+cd "$SCRIPT_DIR/circuit-noir" || exit 1
 
 bb gates \
     --scheme ultra_honk \

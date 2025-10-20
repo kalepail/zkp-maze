@@ -1,0 +1,13 @@
+[package]
+name = "maze-core"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = []
+std = []  # Enable std library features (Vec support for host)
+
+[dependencies]
+# No external dependencies - pure Rust types
+# This crate is no_std compatible for use in guest programs
+# The 'std' feature enables Vec-based APIs for host convenience

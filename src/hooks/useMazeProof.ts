@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { UltraHonkBackend } from '@aztec/bb.js';
 import { Noir, type CompiledCircuit } from '@noir-lang/noir_js';
 import { MAX_MOVES } from '../constants/maze';
-import circuitJson from '../../circuit/target/circuit.json';
+import circuitJson from '../../circuit-noir/target/circuit.json';
 
 const circuit = circuitJson as CompiledCircuit;
 
@@ -19,10 +19,10 @@ export function useMazeProof(
   setProof: (proof: string) => void
 ) {
   const [proving, setProving] = useState(false);
-  const [warmedUp, setWarmedUp] = useState(false);
   const noirRef = useRef<Noir | null>(null);
   const backendRef = useRef<UltraHonkBackend | null>(null);
   const warmupInProgressRef = useRef<Promise<void> | null>(null);
+  const lastWarmupTimeRef = useRef<number | null>(null);
 
   // Initialize Noir and UltraHonkBackend once
   useEffect(() => {
@@ -38,14 +38,14 @@ export function useMazeProof(
   }, []);
 
   const warmupContainer = useCallback(async () => {
-    if (mode === 'local' || warmedUp) return;
+    if (mode === 'local') return;
 
     // If a warmup is already in progress, wait for it
     if (warmupInProgressRef.current) {
       return warmupInProgressRef.current;
     }
 
-    // Start a new warmup
+    // Always run a new warmup (no caching)
     const warmupPromise = (async () => {
       try {
         addLog('🔥 Warming up remote container...');
@@ -56,7 +56,7 @@ export function useMazeProof(
         }
         const warmupDuration = ((performance.now() - warmupStart) / 1000).toFixed(1);
         addLog(`Container warmed up ✅ (${warmupDuration}s)`);
-        setWarmedUp(true);
+        lastWarmupTimeRef.current = Date.now();
       } catch (error) {
         addLog('❌ Container warmup failed');
         console.error('Container warmup error:', error);
@@ -69,7 +69,7 @@ export function useMazeProof(
 
     warmupInProgressRef.current = warmupPromise;
     return warmupPromise;
-  }, [mode, warmedUp, addLog]);
+  }, [mode, addLog]);
 
   const generateProof = useCallback(
     async (moves: number[]) => {
@@ -163,9 +163,18 @@ export function useMazeProof(
     [mode, mazeSeed, addLog, setProof, warmupContainer]
   );
 
+  // Check if warmup is still valid (within 1 minute)
+  const isWarmupValid = useCallback(() => {
+    if (mode === 'local') return true;
+    const now = Date.now();
+    const oneMinuteInMs = 60 * 1000;
+    return lastWarmupTimeRef.current !== null && (now - lastWarmupTimeRef.current) < oneMinuteInMs;
+  }, [mode]);
+
   return {
     proving,
     generateProof,
     warmupContainer,
+    isWarmupValid,
   };
 }
