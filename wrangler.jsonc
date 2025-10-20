@@ -4,7 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "noir-maze-challenge",
+	"name": "zkp-maze",
 	"main": "worker/index.ts",
 	"compatibility_date": "2025-10-08",
 	"assets": {
@@ -39,7 +39,7 @@
 	],
 	"env": {
 		"dev": {
-			"name": "noir-maze-challenge-dev",
+			"name": "zkp-maze-dev",
 			"containers": [
 				{
 					"class_name": "MyContainer",

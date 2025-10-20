@@ -8,12 +8,12 @@ RISC0_DEV_MODE=1 RUST_LOG=info RISC0_INFO=1 cargo run --release
 
 RunPod Start Command
 runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
-bash -c 'apt-get update && apt-get install -y protobuf-compiler libclang-dev && curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source $HOME/.cargo/env && curl -L https://risczero.com/install | bash && export PATH="/root/.risc0/bin:$PATH" && rzup install && export PATH=/usr/local/cuda/bin:$PATH && export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH && echo "export PATH=/root/.risc0/bin:\$PATH" >> ~/.bashrc && echo "export PATH=/usr/local/cuda/bin:\$PATH" >> ~/.bashrc && echo "export LD_LIBRARY_PATH=/usr/local/cuda/lib64:\$LD_LIBRARY_PATH" >> ~/.bashrc && cd /workspace && ([ -d "noir-maze-challenge" ] || git clone https://github.com/kalepail/noir-maze-challenge.git) && cd noir-maze-challenge && git checkout risczero-server && echo "" && echo "========================================" && echo "RISC Zero Setup Complete!" && echo "========================================" && nvidia-smi && if [ -f /start.sh ]; then /start.sh; else sleep infinity; fi'
+bash -c 'apt-get update && apt-get install -y protobuf-compiler libclang-dev && curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source $HOME/.cargo/env && curl -L https://risczero.com/install | bash && export PATH="/root/.risc0/bin:$PATH" && rzup install && export PATH=/usr/local/cuda/bin:$PATH && export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH && echo "export PATH=/root/.risc0/bin:\$PATH" >> ~/.bashrc && echo "export PATH=/usr/local/cuda/bin:\$PATH" >> ~/.bashrc && echo "export LD_LIBRARY_PATH=/usr/local/cuda/lib64:\$LD_LIBRARY_PATH" >> ~/.bashrc && cd /workspace && ([ -d "zkp-maze" ] || git clone https://github.com/kalepail/zkp-maze.git) && cd zkp-maze && echo "" && echo "========================================" && echo "RISC Zero Setup Complete!" && echo "========================================" && nvidia-smi && if [ -f /start.sh ]; then /start.sh; else sleep infinity; fi'
 
 ===
 
-docker build --platform=linux/amd64 -f api-server/Dockerfile.dev -t noir-maze-challenge-dev .
-docker run --rm --platform=linux/amd64 -v /var/run/docker.sock:/var/run/docker.sock -p 8080:8080 noir-maze-challenge-dev
+docker build --platform=linux/amd64 -f api-server/Dockerfile.dev -t zkp-maze-dev .
+docker run --rm --platform=linux/amd64 -v /var/run/docker.sock:/var/run/docker.sock -p 8080:8080 zkp-maze-dev
 
 ===
 
@@ -30,9 +30,9 @@ rzup install risc0-groth16
 
 cd /workspace/
 
-git clone https://github.com/kalepail/noir-maze-challenge
+git clone https://github.com/kalepail/zkp-maze
 
-cd noir-maze-challenge/
+cd zkp-maze/
 
 git checkout risczero-frontend
 

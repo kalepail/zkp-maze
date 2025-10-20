@@ -8,10 +8,10 @@
 # Note: We use --platform=linux/amd64 because rzup doesn't support ARM64.
 #
 # Build:
-#   cd circuit-risczero && docker build --platform=linux/amd64 -f api-server/Dockerfile.dev -t noir-maze-challenge-dev .
+#   cd circuit-risczero && docker build --platform=linux/amd64 -f api-server/Dockerfile.dev -t zkp-maze-dev .
 #
 # Run (requires mounting Docker socket):
-#   docker run --rm --platform=linux/amd64 -v /var/run/docker.sock:/var/run/docker.sock -p 8080:8080 noir-maze-challenge-dev
+#   docker run --rm --platform=linux/amd64 -v /var/run/docker.sock:/var/run/docker.sock -p 8080:8080 zkp-maze-dev
 
 FROM --platform=linux/amd64 rust:1.90.0-slim-bookworm
 

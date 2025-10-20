@@ -1,4 +1,4 @@
-# Noir Maze Challenge
+# ZKP Maze Challenge
 
 Zero-knowledge maze game where players prove they solved a maze without revealing their solution path.
 
@@ -207,7 +207,7 @@ pnpm run types      # Generate Wrangler types
 ## Project Structure
 
 ```
-noir-maze-challenge/
+zkp-maze/
 ├── src/                    # React frontend
 │   ├── components/         # UI components
 │   ├── hooks/              # React hooks

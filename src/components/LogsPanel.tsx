@@ -13,7 +13,7 @@ export default function LogsPanel({ logs }: LogsPanelProps) {
   }, [logs]);
 
   return (
-    <div className="border-2 border-black bg-white flex flex-col flex-1 min-h-0">
+    <div className="border-2 border-black bg-white flex flex-col h-full">
       <div className="bg-black text-white px-3 py-1 font-mono text-sm border-b-2 border-black">
         Logs
       </div>

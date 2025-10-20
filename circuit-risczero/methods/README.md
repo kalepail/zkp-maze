@@ -140,7 +140,7 @@ env::verify(image_id, journal_bytes).expect("Failed to verify");
 Guest programs are automatically built when you build the workspace:
 
 ```bash
-cd /Users/kalepail/Desktop/noir-maze-challenge/circuit-risczero
+cd /Users/kalepail/Desktop/zkp-maze/circuit-risczero
 cargo build --release
 ```
 

@@ -13,7 +13,7 @@ export default function MazeCanvas(props: MazeCanvasProps) {
   const canvasRef = useMazeCanvas(props);
 
   return (
-    <div className="border-2 border-black bg-white flex flex-col h-full max-h-[600px]">
+    <div className="border-2 border-black bg-white flex flex-col h-full">
       <div className="bg-black text-white px-3 py-1 font-mono text-sm border-b-2 border-black">
         Maze
       </div>
