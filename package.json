@@ -11,7 +11,7 @@
 		"types": "wrangler types",
 		"lint": "eslint .",
 		"typecheck": "tsc -b --noEmit",
-		"generate": "python3 generate_maze.py 2918957128 --no-preview",
+		"generate": "python3 generate_maze.py 3419211071 --no-preview",
 		"compile": "cd circuit-noir && nargo compile && cp target/circuit.json ../worker/container_src/circuit.json",
 		"execute": "cd circuit-noir && nargo execute && cp target/circuit.gz ../worker/container_src/circuit.gz",
 		"prove": "rm -rf ~/.bb-crs && cd circuit-noir && bb prove -b target/circuit.json -w target/circuit.gz -o target && cp -rf ~/.bb-crs ../worker/container_src",
