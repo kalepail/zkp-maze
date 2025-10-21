@@ -1,0 +1,30 @@
+# Build artifacts
+target/
+*.o
+*.so
+*.a
+
+# Rust
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Test and development files
+*_trace.json
+*_proof.json
+*_moves.json
+*_path_proof.json
+
+# Documentation
+README.md

@@ -37,10 +37,14 @@ RUN curl -L https://risczero.com/install | INSTALLER_NO_PROMPT=1 bash && \
 
 WORKDIR /workspace
 
-COPY circuit-risczero/ ./circuit-risczero/
+# Copy only the necessary files for building
+COPY Cargo.toml rust-toolchain.toml ./
+COPY host/ ./host/
+COPY methods/ ./methods/
+COPY api-server/ ./api-server/
+COPY core/ ./core/
 
-WORKDIR /workspace/circuit-risczero
-
+# Build the project
 RUN cargo fetch --locked && \
     cargo build --locked --release --package api-server --features cuda
 
@@ -72,7 +76,8 @@ ENV PATH=/root/.risc0/bin:${PATH}
 
 WORKDIR /app
 
-COPY --from=builder /workspace/circuit-risczero/target/release/api-server /usr/local/bin/api-server
+# Copy only the built binary from the builder stage
+COPY --from=builder /workspace/target/release/api-server /usr/local/bin/api-server
 
 EXPOSE 8080
 

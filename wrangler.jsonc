@@ -7,6 +7,7 @@
 	"name": "zkp-maze",
 	"main": "worker/index.ts",
 	"compatibility_date": "2025-10-08",
+	"workers_dev": false,
 	"assets": {
 		"not_found_handling": "single-page-application"
 	},
