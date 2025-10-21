@@ -49,6 +49,9 @@ kill -9 $(lsof -t -i:8080)
 
 # Control + b then d
 
+pip uninstall torch torchvision torchaudio --no-input
+pip cache purge
+
 # https://one.dash.cloudflare.com/<account_id>/networks/tunnels/add/cfd_tunnel
 
 # Add cloudflare gpg key

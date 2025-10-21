@@ -4,7 +4,7 @@
 	"version": "0.0.0",
 	"type": "module",
 	"scripts": {
-		"dev": "CLOUDFLARE_ENV=dev vite",
+		"dev": "CLOUDFLARE_ENV=dev vite --host",
 		"build": "tsc -b && CLOUDFLARE_ENV='' vite build",
 		"preview": "pnpm run build && CLOUDFLARE_ENV='' vite preview",
 		"deploy": "pnpm run build && wrangler deploy --env=''",

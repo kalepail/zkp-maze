@@ -1,0 +1,59 @@
+env >> /etc/environment
+mkdir -p ${DATA_DIRECTORY:-/workspace}
+
+export RUSTUP_INIT_SKIP_PATH_CHECK=yes
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile default
+
+. "$HOME/.cargo/env"
+
+curl -L https://risczero.com/install | INSTALLER_NO_PROMPT=1 bash
+
+# Add rzup to PATH
+export PATH="$HOME/.risc0/bin:$PATH"
+source "/root/.bashrc" 2>/dev/null || true
+
+# Install RISC Zero toolchain (rzup doesn't support -y flag)
+rzup install || true
+rzup install risc0-groth16 || true
+
+cd /workspace/
+
+# Clone or update repo
+if [ -d "zkp-maze" ]; then
+  cd zkp-maze/
+  git pull
+else
+  git clone https://github.com/kalepail/zkp-maze
+  cd zkp-maze/
+fi
+
+cd circuit-risczero/
+
+apt-get update -qq
+DEBIAN_FRONTEND=noninteractive apt-get install -y lsof clang libclang-dev
+
+# Ensure Cargo is in PATH
+. "$HOME/.cargo/env"
+
+RUSTFLAGS="-C target-cpu=native" cargo build -F cuda -r --package api-server
+
+kill -9 $(lsof -t -i:8080) 2>/dev/null || true
+
+pip uninstall torch torchvision torchaudio --no-input
+pip cache purge
+
+# Add cloudflare gpg key
+mkdir -p --mode=0755 /usr/share/keyrings
+curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+
+# Add this repo to your apt repositories
+echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | tee /etc/apt/sources.list.d/cloudflared.list
+
+# install cloudflared
+apt-get update && apt-get install cloudflared
+
+./target/release/api-server &
+
+# open port 8080 with -p 8080:8080 in the docker run command
+# get your cloudflare tunnel token and run it in a ssh terminal
+# e.g. cloudflared service install <token>

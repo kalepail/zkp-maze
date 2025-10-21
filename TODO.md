@@ -1,1 +1,0 @@
-- [ ] write a version of this with risc0 to see how it compares (I think we should be able to get generic maze proving)
