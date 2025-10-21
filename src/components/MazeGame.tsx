@@ -6,7 +6,6 @@ import { ANIMATION } from '../constants/theme';
 import { useGameState } from '../hooks/useGameState';
 import { useMazeProof } from '../hooks/useMazeProof';
 import { useRisc0Proof } from '../hooks/useRisc0Proof';
-import { useSwipeControls } from '../hooks/useSwipeControls';
 import type { ProofProvider } from '../constants/provider';
 import MazeCanvas from './MazeCanvas';
 import GameControls from './GameControls';
@@ -241,12 +240,6 @@ export default function MazeGame() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleMove]);
-
-  // Swipe controls for mobile
-  useSwipeControls({
-    onSwipe: handleMove,
-    enabled: !won && !autoSolving,
-  });
 
   // Add initial log when maze is loaded
   useEffect(() => {
